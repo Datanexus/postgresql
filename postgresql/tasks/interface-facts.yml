@@ -1,0 +1,19 @@
+# (c) Copyright 2016 DataNexus Inc.  All Rights Reserved.
+#
+# automatically set facts based on interfaces present
+---    
+- name: setting eth0 to all interfaces
+  set_fact:
+    postgresql_interface: "{{ hostvars[inventory_hostname].ansible_eth0.device }}"
+    postgresql_interface_ipv4: "{{ hostvars[inventory_hostname].ansible_eth0.ipv4.address }}"
+    postgresql_broadcast_interface_ipv4: "{{ hostvars[inventory_hostname].ansible_eth0.ipv4.broadcast }}"
+    postgresql_metrics_interface_ipv4: "{{ hostvars[inventory_hostname].ansible_eth0.ipv4.address }}"
+  when: hostvars[inventory_hostname].ansible_eth0 is defined
+
+- name: setting eth1 to postgresql and metrics
+  set_fact:
+    postgresql_interface: "{{ hostvars[inventory_hostname].ansible_eth1.device }}"
+    postgresql_interface_ipv4: "{{ hostvars[inventory_hostname].ansible_eth1.ipv4.address }}"
+    postgresql_broadcast_interface_ipv4: "{{ hostvars[inventory_hostname].ansible_eth1.ipv4.broadcast }}"
+    postgresql_metrics_interface_ipv4: "{{ hostvars[inventory_hostname].ansible_eth1.ipv4.address }}"    
+  when: hostvars[inventory_hostname].ansible_eth1 is defined

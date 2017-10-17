@@ -1,0 +1,67 @@
+# (c) Copyright 2016 DataNexus Inc.  All Rights Reserved. 
+#
+# streaming tasks for the master
+---
+- block:
+  # this needs to be the internal public network 
+  - name: configure replication user authentication
+    lineinfile:
+      dest: "{{ postgresql_config_path }}/pg_hba.conf"
+      line: "host     replication     replicator      {{ hostvars[item].postgresql_interface_ipv4 }}/32         md5"
+    become: true
+    with_items: "{{ groups.postgresql_replica }}"
+    notify: restart postgresql  
+     
+  - name: adding replication user
+    postgresql_user:
+      name: "{{ item.name }}"
+      password: "{{ item.password | default(omit) }}"
+      priv: "{{ item.priv | default(omit) }}"
+      role_attr_flags: "{{ item.role_attr_flags | default(omit) }}"
+      db: "{{ item.db | default(omit) }}"
+      login_host: "{{ item.login_host | default('localhost') }}"
+      login_password: "{{ item.login_password | default(omit) }}"
+      login_user: "{{ item.login_user | default(postgresql_user) }}"
+      login_unix_socket: "{{ item.login_unix_socket | default(postgresql_unix_socket_directories[0]) }}"
+      port: "{{ item.port | default(omit) }}"
+      state: "{{ item.state | default('present') }}"
+    with_items: "{{ replication_users  }}"
+    no_log: true
+    become_user: "{{ postgresql_user }}"
+  
+  - name: configure write ahead log for streaming
+    lineinfile:
+      dest: "{{ postgresql_config_path }}/postgresql.conf"
+      regexp: "^#wal_level"
+      backrefs: yes
+      line: "wal_level = hot_standby\t\t\t# minimal, archive, or hot_standby"
+    notify: restart postgresql
+
+  # max_wal_senders should be four times the total number of replicas 
+  - set_fact: wal_senders={{ groups['postgresql_replica'] | length * 4 }}  
+  
+  - name: configure write ahead log senders
+    lineinfile:
+      dest: "{{ postgresql_config_path }}/postgresql.conf"
+      regexp: "^#max_wal_senders"
+      backrefs: yes
+      line: "max_wal_senders = {{ wal_senders }} \t\t# max number of walsender processes"
+    notify: restart postgresql
+
+  - name: configure checkpoint segments
+    lineinfile:
+      dest: "{{ postgresql_config_path }}/postgresql.conf"
+      regexp: "^#checkpoint_segments"
+      backrefs: yes
+      line: "checkpoint_segments = 8\t\t\t# in logfile segments, min 1, 16MB each"
+    notify: restart postgresql
+    
+  - name: configure write ahead log keep segments
+    lineinfile:
+      dest: "{{ postgresql_config_path }}/postgresql.conf"
+      regexp: "^#wal_keep_segments"
+      backrefs: yes
+      line: "wal_keep_segments = 8\t\t# in logfile segments, 16MB each; 0 disables"
+    notify: restart postgresql
+  when: inventory_hostname in groups.postgresql_master
+  become: true

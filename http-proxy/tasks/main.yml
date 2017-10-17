@@ -1,0 +1,105 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# HTTP proxy configuration
+---
+# set http_proxy_url: http://USER:PASS@PROXY:PORT in YAML to bypass this
+# - name: getting proxy connection
+#   pause:
+#     prompt: proxy connection URL
+#   register: http_proxy_input
+#   when:
+#     - http_proxy_url is not defined
+
+# - debug: msg="{{ groups['postgresql'] }}"
+# - debug: msg="{{ http_proxy_input }}"
+
+# - set_fact:
+#     http_proxy_url: "{{ http_proxy_input }}"
+#   when:
+#     - not http_proxy_input | skipped
+
+# set proxy_certs_file: FILE in YAML to bypass this
+# - name: getting location of certs file
+#   pause:
+#     prompt: path to cert location (.tar.gz expected)
+#   register: cert_location_input
+#   when:
+#     - proxy_certs_file is not defined
+
+# - set_fact:
+#     proxy_certs_file: "{{ cert_location_input }}"
+#   when:
+#     - not cert_location_input | skipped
+
+- name: setting http_proxy environment variables
+  set_fact:
+    proxy_vars:
+      http_proxy: "{{ http_proxy }}"
+      https_proxy: "{{ http_proxy }}"
+      HTTP_PROXY: "{{ http_proxy }}"
+      HTTPS_PROXY: "{{ http_proxy }}"
+  when:
+    - http_proxy is defined
+
+- name: setting no_proxy environment variables
+  set_fact:
+    no_proxy_vars:
+      no_proxy: "{{ no_proxy }}"
+      NO_PROXY: "{{ no_proxy }}"
+  when:
+    - no_proxy is defined
+
+- name: Initialize environment_vars
+  set_fact: environment_vars={}
+
+- name: Set environment variables
+  set_fact:
+    environment_vars:  "{{ no_proxy_vars | default({}) | combine(proxy_vars | default({})) }}"
+
+- block:
+  - name: configuring http_proxy
+    lineinfile:
+      dest: "/home/{{ user }}/.bashrc"
+      line: 'export http_proxy="{{ http_proxy }}"'
+      insertafter: "^fi$"
+
+  - name: configuring https_proxy
+    lineinfile:
+      dest: "/home/{{ user }}/.bashrc"
+      line: 'export https_proxy="{{ http_proxy }}"'
+      insertafter: "^export http_proxy"
+  when:
+    - http_proxy is defined
+
+- name: configuring no_proxy
+  lineinfile:
+    dest: "/home/{{ user }}/.bashrc"
+    line: 'export no_proxy="{{ no_proxy }}"'
+    insertafter: "^export https_proxy"
+  when:
+    - no_proxy is defined
+
+- name: ensure root inherits proxy settings
+  lineinfile:
+    dest: /etc/sudoers
+    line: 'Defaults    env_keep += "http_proxy https_proxy no_proxy"'
+    insertafter: '^Defaults    env_keep \+= "LC_TIME LC_ALL LANGUAGE LINGUAS _XKB_CHARSET XAUTHORITY"$'
+  become: true
+  when:
+    - http_proxy is defined
+
+- name: copying and unpacking trusted certificates
+  become: true
+  unarchive:
+    src: "{{ proxy_certs_file }}"
+    dest: /etc/pki/ca-trust/source/anchors
+  when:
+    - proxy_certs_file is defined
+    - ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
+
+- name: adding uploaded certificates to list of trusted certs
+  become: true
+  shell: /usr/bin/update-ca-trust
+  when:
+    - proxy_certs_file is defined
+    - ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'

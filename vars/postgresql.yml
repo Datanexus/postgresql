@@ -1,0 +1,21 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+---
+application: postgresql
+postgresql_major_version: 9
+postgresql_minor_version: 6
+postgresql_rev_version: "5-1"
+#postgresql_rpm_info: "PGDG.rhel7.x86_64.rpm"
+postgresql_rpm_info: "PGDG.rhel7"
+postgresql_version: "{{ postgresql_major_version }}.{{ postgresql_minor_version }}.{{ postgresql_rev_version }}"
+python_postgres_adapter_version: "2.5.1-3"
+postgresql_package_list:
+  - "python-psycopg2-{{ python_postgres_adapter_version }}.el7"
+  - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_version }}{{ postgresql_rpm_info }}"
+  - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-server-{{ postgresql_version }}{{ postgresql_rpm_info }}"
+  - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-contrib-{{ postgresql_version }}{{ postgresql_rpm_info }}"
+  - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-libs-{{ postgresql_version }}{{ postgresql_rpm_info }}"
+postgresql_data_dir: "/data/pgsql"
+postgresql_home_dir: "/var/lib/pgsql"
+postgresql_bin_path: "/usr/pgsql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}/bin"
+postgresql_config_path: "{{ postgresql_data_dir }}"
+postgresql_daemon: "postgresql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}"

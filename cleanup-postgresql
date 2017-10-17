@@ -1,0 +1,99 @@
+#!/usr/bin/env ansible-playbook
+# (c) 2016 DataNexus Inc.  All Rights Reserved. 
+#
+# remove postgresql instances
+---
+- hosts: localhost
+  vars_files:
+    - "{{ configuration }}"
+  gather_facts: true  
+  tasks:
+    - name: gathering {{ region }} running instances
+      ec2_remote_facts:
+        region: "{{ region }}"
+        filters:
+          instance-state-name: running
+          "tag:Tenant": "{{ tenant }}"
+          "tag:Project": "{{ project }}"
+          "tag:Domain": "{{ domain }}"
+          "tag:Application": "{{ application }}"
+          "tag:Cluster": "{{ cluster | default ('a') }}"
+          "tag:Dataflow": "{{ dataflow | default ('none') }}"
+      register: instance_facts
+
+    - name: gathering {{ region }} available interfaces
+      ec2_eni_facts:
+        region: "{{ region }}"
+        filters:
+          status: in-use
+          group-name: "{{ project }}_{{ application }}"
+          description: 'public internal'
+      register: eni_facts
+
+    - name: releasing EIP in {{ region }}
+      ec2_eip:
+        region: "{{ region }}"
+        in_vpc: yes
+        state: absent
+        release_on_disassociation: yes
+        device_id: "{{ item }}"
+      with_items: "{{ eni_facts.interfaces | selectattr('status', 'equalto', 'in-use') | map(attribute='id') | list }}"
+      when:
+        - eni_facts.interfaces | length > 0
+                      
+    - name: terminating instances in {{ region }}
+      ec2:
+        state: absent
+        region: "{{ region }}"
+        instance_ids: "{{ item }}"
+        wait: true
+      with_items: "{{ instance_facts.instances | selectattr('state', 'equalto', 'running') | map(attribute='id') | list }}"
+      when:
+        - instance_facts.instances | length > 0
+    
+    - name: gathering {{ region }} available volumes
+      ec2_vol_facts:
+        region: "{{ region }}"
+        filters:
+          status: available
+      register: volume_facts
+
+    - name: terminating volumes in {{ region }}
+      ec2_vol:
+        state: absent
+        region: "{{ region }}"
+        id: "{{ item }}"
+      with_items: "{{ volume_facts.volumes | selectattr('status', 'equalto', 'available') | map(attribute='id') | list }}"
+      when:
+        - volume_facts.volumes | length > 0 
+          
+    - name: terminating interfaces in {{ region }}
+      ec2_eni:
+        state: absent
+        region: "{{ region }}"
+        eni_id: "{{ item }}"
+      with_items: "{{ eni_facts.interfaces | selectattr('status', 'equalto', 'available') | map(attribute='id') | list }}"
+      when:
+        - eni_facts.interfaces | length > 0
+            
+    - name: removing {{ application }} key
+      ec2_key:
+        state: absent
+        region: "{{ region }}"      
+        name: "{{ region }}-{{ application }}"
+    
+    - name: retrieving VPC ID for {{ network }} in {{ region }}
+      ec2_vpc_net_facts:
+        region: "{{ region }}"
+        # This filter must map exactly to what we created in the e2_vpc module
+        filters:
+          cidr_block: "{{ cidr_block }}"
+      register: vpc_facts
+
+    - name: removing postgresql security groups
+      local_action:
+        module: ec2_group
+        name: "{{ project }}_postgresql"
+        vpc_id: "{{ (vpc_facts.vpcs|selectattr('state', 'equalto', 'available')|map(attribute='id')|list).0 }}"
+        region: "{{ region }}"
+        state: absent

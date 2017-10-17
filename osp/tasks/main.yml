@@ -1,0 +1,11 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# launch OSP virtual machine(s)
+---
+- name: launching instance(s) on a single subnet
+  import_tasks: single-subnet.yml
+  when: internal_uuid is not defined
+
+- name: launching instance(s) on multiple subnets
+  import_tasks: multiple-subnet.yml
+  when: internal_uuid is defined  

@@ -1,0 +1,8 @@
+# (c) Copyright 2016 DataNexus Inc.  All Rights Reserved. 
+#
+# simple handlers for restarting services
+---  
+- name: restart postgresql
+  become: yes
+  systemd: "name={{ postgresql_daemon }} state=restarted daemon_reload=yes"
+  

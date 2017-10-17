@@ -1,0 +1,7 @@
+# (c) Copyright 2016 DataNexus Inc.  All Rights Reserved. 
+#
+# default variables for the replica
+---
+postgresql_user: postgres
+postgresql_group: postgres
+postgresql_data_dir: "/data/pgsql"

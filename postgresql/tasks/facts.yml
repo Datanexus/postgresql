@@ -1,0 +1,31 @@
+# (c) Copyright 2016 DataNexus Inc.  All Rights Reserved. 
+---
+- name: defining postgresql_version
+  set_fact:
+    postgresql_version: "{{ postgresql_version }}"
+  when: postgresql_version is not defined
+
+- name: defining postgresql_home_dir
+  set_fact:
+    postgresql_home_dir: "{{ postgresql_home_dir }}"
+  when: postgresql_home_dir is not defined
+  
+- name: definging postgresql_data_dir
+  set_fact:
+    postgresql_data_dir: "{{ postgresql_data_dir }}"
+  when: postgresql_data_dir is not defined
+
+- name: defining postgresql_bin_path
+  set_fact:
+    postgresql_bin_path: "{{ postgresql_bin_path }}"
+  when: postgresql_bin_path is not defined
+
+- name: defining postgresql_config_path
+  set_fact:
+    postgresql_config_path: "{{ postgresql_config_path }}"
+  when: postgresql_config_path is not defined
+
+- name: definging postgresql_daemon
+  set_fact:
+    postgresql_daemon: "{{ postgresql_daemon }}"
+  when: postgresql_daemon is not defined

@@ -1,0 +1,9 @@
+# ignore all private keys
+*.pem
+# ignore ansible logs
+ansible.log
+.DS_Store
+*.retry
+*.gz
+# any OSP host files
+*.hostfile

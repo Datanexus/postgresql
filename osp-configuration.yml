@@ -1,0 +1,27 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# example OSP instance
+---
+cloud: osp
+tenant: TENANT
+project: PROJECT
+domain: DOMAIN
+application: postgresql
+region: OSP_REGION
+cluster: CLUSTER
+replica: REPLICA
+role: ROLE
+dataflow: DATAFLOW
+user: USER
+image: AMI_UUID
+type: TYPE
+root_volume: SIZE
+data_volume: SIZE
+block_pool: POOL
+internal_uuid: SUBNET_UUID
+external_uuid: SUBNET_UUID
+internal_subnet: SUBNET
+external_subnet: SUBNET
+float_pool: FLOAT
+zone: ZONE 
+http_proxy: PROXY

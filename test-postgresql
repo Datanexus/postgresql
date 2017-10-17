@@ -1,0 +1,156 @@
+#!/usr/bin/env ansible-playbook
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# simple test file for standalone or master/replica
+---
+# do the auto discovery first as we use all the nodes for master/replica configuration
+- name: discovering all postgresql nodes
+  vars_files:
+    - "{{ configuration }}"
+  hosts: localhost
+  tasks:
+    - ec2_instance_facts:
+        region: "{{ region }}"
+        filters:
+          instance-state-name: running
+          "tag:Tenant": "{{ tenant }}"
+          "tag:Project": "{{ project }}"
+          "tag:Domain": "{{ domain }}"
+          "tag:Application": postgresql
+          "tag:Cluster": "{{ cluster | default ('a') }}"
+          "tag:Dataflow": "{{ dataflow | default ('none') }}"
+      register: postgresql_instances
+      when: cloud == 'aws'
+
+    - name: building postgresql host group
+      add_host: hostname="{{ item }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="./{{cloud }}-{{ region }}-{{ project }}-{{ application }}-private-key.pem"
+      with_items: "{{ postgresql_instances.instances | map (attribute='private_ip_address') | list }}"
+      when:
+        - cloud == 'aws'
+        - postgresql_instances is defined
+        - postgresql_instances.instances|length > 0
+
+- name: discovering all postgresql master nodes
+  vars_files:
+    - "{{ configuration }}"
+  hosts: localhost
+  tasks:
+    - ec2_instance_facts:
+        region: "{{ region }}"
+        filters:
+          instance-state-name: running
+          "tag:Tenant": "{{ tenant }}"
+          "tag:Project": "{{ project }}"
+          "tag:Domain": "{{ domain }}"
+          "tag:Application": postgresql
+          "tag:Cluster": "{{ cluster | default ('a') }}"
+          "tag:Role": master
+          "tag:Dataflow": "{{ dataflow | default ('none') }}"
+      register: postgresql_master_instances
+      when: cloud == 'aws'
+
+    - name: building postgresql host group
+      add_host: hostname="{{ item }}" groupname=postgresql_master ansible_user="{{ user }}" ansible_ssh_private_key_file="./{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-private-key.pem"
+      with_items: "{{ postgresql_master_instances.instances | map (attribute='private_ip_address') | list }}"
+      when:
+        - cloud == 'aws'
+        - postgresql_master_instances is defined
+        - postgresql_master_instances.instances|length > 0
+
+- name: discovering all postgresql replica nodes
+  vars_files:
+    - "{{ configuration }}"
+  hosts: localhost
+  tasks:
+    - ec2_instance_facts:
+        region: "{{ region }}"
+        filters:
+          instance-state-name: running
+          "tag:Tenant": "{{ tenant }}"
+          "tag:Project": "{{ project }}"
+          "tag:Domain": "{{ domain }}"
+          "tag:Application": postgresql
+          "tag:Cluster": "{{ cluster | default ('a') }}"
+          "tag:Role": replica
+          "tag:Dataflow": "{{ dataflow | default ('none') }}"
+      register: postgresql_replica_instances
+      when: cloud == 'aws'
+
+    - name: building postgresql host group
+      add_host: hostname="{{ item }}" groupname=postgresql_replica ansible_user="{{ user }}" ansible_ssh_private_key_file="./{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-private-key.pem"
+      with_items: "{{ postgresql_replica_instances.instances | map (attribute='private_ip_address') | list }}"
+      when:
+        - cloud == 'aws'
+        - postgresql_replica_instances is defined
+        - postgresql_replica_instances.instances|length > 0
+
+# run the create and select on the standalone               
+- hosts: "{{ application }}"
+  vars_files:
+    - "{{ configuration }}"
+  tasks:
+    - command: "/usr/bin/psql -c 'create table if not exists t_random as select s, md5(random()::text) from generate_Series(1,500) s;'"
+      become: yes
+      become_user: postgres
+      register: create_out
+      when: not replica
+        
+    - debug: msg="{{ create_out.stdout_lines }}"
+      when: not replica
+
+    - command: "/usr/bin/psql -c 'select * from t_random limit 15;'"
+      become: yes
+      become_user: postgres
+      register: select_out
+      when: not replica
+        
+    - debug: msg="{{ select_out.stdout_lines }}"
+      when: not replica
+
+# run the create and select on the master/replica pair                 
+- hosts: "{{ application }}_master"
+  vars_files:
+    - "{{ configuration }}"
+  tasks:
+    - command: "/usr/bin/psql -c 'create table if not exists t_random as select s, md5(random()::text) from generate_Series(1,500) s;'"
+      become: yes
+      become_user: postgres
+      register: create_out
+      
+    - debug: msg="{{ create_out.stdout_lines }}"
+        
+- hosts: "{{ application }}_replica"
+  vars_files:
+    - "{{ configuration }}"
+  tasks:
+    - command: "/usr/bin/psql -c 'select * from t_random limit 15;'"
+      become: yes
+      become_user: postgres
+      register: select_out
+    
+    - debug: msg="{{ select_out.stdout_lines }}"
+
+# clean up the t_random table        
+- hosts: "{{ application }}"
+  vars_files:
+    - "{{ configuration }}"
+  tasks:
+    - command: "/usr/bin/psql -c 'drop table t_random;'"
+      become: yes
+      become_user: postgres
+      register: drop_out
+      when: not replica
+      
+    - debug: msg="{{ drop_out.stdout_lines }}"
+      when: not replica
+        
+- hosts: "{{ application }}_master"
+  vars_files:
+    - "{{ configuration }}"
+  tasks:
+    - command: "/usr/bin/psql -c 'drop table t_random;'"
+      become: yes
+      become_user: postgres
+      register: drop_out
+      
+    - debug: msg="{{ drop_out.stdout_lines }}"        

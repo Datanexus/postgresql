@@ -1,0 +1,23 @@
+#!/bin/sh
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+
+if [ "$1" == "-h" ] ; then
+    echo "Usage:  `basename $0` [-h]\t\thelp"
+    echo "\t`basename $0` [aws | osp | FILE]\ttest either aws, osp, or FILE configuration"
+    exit 0
+fi
+
+if [ $1 == "aws" ]; then
+  export configuration=aws-configuration.yml
+  export AWS_PROFILE=datanexus   # set this to the desired AWS profile in ~/.aws/credentials
+elif [ $1 == "osp" ]; then
+  export configuration=osp-configuration.yml
+  export hostfile="-i `/bin/ls *.hostfile`"
+else
+  export AWS_PROFILE=datanexus    # set this to the desired AWS profile in ~/.aws/credentials
+  export hostfile="-i `/bin/ls *.hostfile`"
+  export configuration=$1
+fi
+
+echo "testing instance(s) using $configuration..."
+./test-postgresql $hostfile -e "configuration=$configuration"

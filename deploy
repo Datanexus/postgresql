@@ -1,0 +1,18 @@
+#!/bin/sh
+# (c) Copyright 2016 DataNexus Inc.  All Rights Reserved. 
+
+export AWS_PROFILE=datanexus   # set this to the desired AWS profile in ~/.aws/credentials
+
+if [ $# -eq 0 ] || [ "$1" == "-h" ] ; then
+    echo "Usage:  `basename $0` [-h]\t\thelp"
+    echo "\t`basename $0` [aws | osp | FILE]\tuse aws, osp, or FILE configuration file"
+    exit 0
+fi
+
+if [ $1 == "aws" ] || [ $1 == "osp" ]; then
+  export configuration="$1-configuration.yml"
+else
+  export configuration="$1"
+fi
+
+./provision-postgresql -e "configuration=$configuration"

@@ -1,0 +1,23 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# example AWS instance
+---
+cloud: aws  
+tenant: AWS_PROFILE
+project: PROJECT
+domain: DOMAIN
+application: postgresql
+region: AWS_REGION
+cluster: CLUSTER
+replica: REPLICA
+role: ROLE
+dataflow: DATAFLOW
+user: USER
+image: AMI
+type: TYPE
+root_volume: SIZE
+data_volume: SIZE
+cidr_block: CIDR_BLOCK
+internal_subnet: SUBNET
+external_subnet: SUBNET
+http_proxy: PROXY

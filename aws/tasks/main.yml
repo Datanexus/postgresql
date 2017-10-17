@@ -1,0 +1,296 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# Launch an AWS AMI
+---
+- name: retrieving default VPC ID
+  local_action:
+    module: ec2_vpc_net_facts
+    region: "{{ region }}"
+    filters:
+      cidr_block: "{{ cidr_block }}"
+  register: specified_vpc
+  
+- name: retrieving {{ internal_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }}
+  local_action:
+    module: ec2_vpc_subnet_facts
+    region: "{{ region }}"
+    filters:
+      cidr_block: "{{ internal_subnet }}"
+  register: internal_subnet_result
+  when:
+    - internal_subnet is defined
+
+- name: retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }}
+  local_action:
+    module: ec2_vpc_subnet_facts
+    region: "{{ region }}"
+    filters:
+      cidr_block: "{{ external_subnet }}"
+  register: external_subnet_result
+  when:
+    - external_subnet is defined
+  
+- set_fact:
+    internal_subnet_id: "{{ internal_subnet_result.subnets.0.id }}"
+  when:
+    - internal_subnet_result.skipped is not defined
+
+- set_fact:
+    external_subnet_id: "{{ external_subnet_result.subnets.0.id }}"
+  when:
+    - external_subnet_result.skipped is not defined
+
+- block:    
+  - name: searching for CentOS 7 AMI for specified region
+    ec2_ami_find:
+      name: "CentOS Linux 7 x86_64*"
+      region: "{{ region }}"
+      owner: 679593333241
+      virtualization_type: hvm
+      sort: name
+      sort_order: descending
+      sort_end: 1
+    register: amis_found
+
+  - set_fact:
+      image: "{{ amis_found.results[0].ami_id }}"
+  when:
+    - image is not defined
+
+- name: creating ssh security group
+  local_action:
+    module: ec2_group
+    name: "{{ project }}_ssh"
+    description: "ssh ingress and unrestricted egress rules (ansible)"
+    vpc_id: "{{ specified_vpc.vpcs.0.id }}"
+    region: "{{ region }}"
+    rules:
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        cidr_ip: "{{ internal_subnet }}"
+    rules_egress:
+      # Allow all outbound
+      - proto: all
+        cidr_ip: 0.0.0.0/0
+  register: sg_ssh
+  
+- name: creating postgresql security group
+  local_action:
+    module: ec2_group
+    name: "{{ project }}_postgresql"
+    description: "postgresql ingress and unrestricted egress rules (ansible)"
+    vpc_id: "{{ specified_vpc.vpcs.0.id }}"
+    region: "{{ region }}"
+    rules:
+      - proto: tcp
+        from_port: 5432
+        to_port: 5432
+        cidr_ip: "{{ external_subnet }}"
+    rules_egress:
+      # Allow all outbound
+      - proto: all
+        cidr_ip: 0.0.0.0/0
+  register: sg_postgresql
+
+- name: checking {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-private-key.pem
+  stat: path="./{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-private-key.pem"
+  register: existing_key
+
+- block: 
+  - name: generating public key from {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-private-key.pem
+    command: "/usr/bin/ssh-keygen -f {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-private-key.pem -y"
+    register: public_key_from_pem
+    
+  - name: using existing {{ cloud }}-{{ region }}-{{ project }}-{{ application }}
+    ec2_key:
+      region: "{{ region }}"
+      state: present
+      name: "{{ cloud }}-{{ region }}-{{ project }}-{{ application }}"
+      key_material: "{{ public_key_from_pem.stdout }}" 
+    register: old_keypair
+
+  - set_fact: keypair="{{ old_keypair }}"
+  when: 
+    - existing_key.stat.exists
+
+- block:
+  - name: creating {{ cloud }}-{{ region}}-{{ project }}-{{ application }}
+    ec2_key:
+      name: "{{ cloud }}-{{ region }}-{{ project }}-{{ application }}"
+      region: "{{ region }}"
+    register: new_keypair
+    
+  - set_fact: keypair="{{ new_keypair }}"
+
+  - name: saving {{ cloud }}-{{ region }}-{{ project }}-{{ application }}
+    copy:
+      dest: "./{{ keypair.key.name }}-private-key.pem"
+      content: "{{ keypair.key.private_key }}"
+      mode: 0400
+  when:
+    - not existing_key.stat.exists
+
+# always boot a single postgresql server
+- name: setting count to single node
+  set_fact:
+    count: 1 
+ 
+# the math is overkill, but it's useful if we want to get more complicated
+- name: configuring instance count based on replica
+  set_fact:
+    count: "{{ count | int * 2 }}" 
+  when:
+    - replica
+
+- name: launch AMI
+  ec2:
+    key_name: "{{ keypair.key.name }}"
+    group_id: "{{ sg_ssh.group_id }}"
+    instance_type: "{{ type }}"
+    image: "{{ image }}"
+    vpc_subnet_id: "{{ internal_subnet_id }}"
+    region: "{{ region }}"
+    assign_public_ip: no
+    wait: true
+    exact_count: "{{ count }}"
+    count_tag:
+      Name: "{{ project }}_postgresql"
+      Tenant: "{{ tenant }}"
+      Project: "{{ project }}"
+      Cloud: "{{ cloud }}"
+      Domain: "{{ domain }}"
+      Application: "{{ application }}"
+      Cluster: "{{ cluster | default ('a') }}"
+      Role: "{{ role | default ('none') }}"
+      Dataflow: "{{ dataflow | default ('none') }}"
+    instance_tags:
+      Name: "{{ project }}_{{ application }}"
+      Tenant: "{{ tenant }}"
+      Project: "{{ project }}"
+      Cloud: "{{ cloud }}"
+      Domain: "{{ domain }}"
+      Application: postgresql
+      Cluster: "{{ cluster | default ('a') }}"
+      Role: "{{ role | default ('none') }}"
+      Dataflow: "{{ dataflow | default ('none') }}"
+    ebs_optimized: false
+    volumes:
+      - device_name: /dev/sda1
+        volume_type: gp2
+        volume_size: "{{ root_volume }}"
+        delete_on_termination: true
+      - device_name: /dev/xvdb
+        volume_type: gp2
+        volume_size: "{{ data_volume }}"
+        delete_on_termination: true
+        encrypted: true
+  register: ec2
+
+# obviously this only works when we have a matched pair
+- block:
+  - name: ensuring postgresql master is tagged as such
+    ec2_tag:
+      region: "{{ region }}"
+      resource: "{{ ec2.instances.0.id }}"
+      state: present
+      tags:
+        Role: master
+
+  - name: ensuring postgresql replica is tagged as such
+    ec2_tag:
+      region: "{{ region }}"
+      resource: "{{ ec2.instances.1.id }}"
+      state: present
+      tags:
+        Role: replica
+  when:
+    - not ec2|skipped and ec2.changed and ec2.instances|length > 0
+    - replica
+
+- name: creating public internal ENI as eth1 
+  ec2_eni:
+    description: "public internal"
+    instance_id: "{{ item.id }}"
+    region: "{{ region }}"
+    subnet_id: "{{ external_subnet_id }}"
+    device_index: 1
+    attached: true
+    security_groups: "{{ sg_postgresql.group_id }}"
+    state: present
+  register: public_eni
+  with_items: "{{ ec2.instances }}"
+  when:
+    - not ec2|skipped and ec2.changed and ec2.instances|length > 0
+    - external_subnet_id is defined
+
+- name: configuring public internal ENI to delete on termination
+  ec2_eni:
+    region: "{{ region }}"
+    eni_id: "{{ item.interface.id }}"
+    subnet_id: "{{ external_subnet_id }}"
+    delete_on_termination: true
+  with_items: "{{ public_eni.results }}"
+  when:
+    - not public_eni | skipped and public_eni.changed and public_eni.results | length > 0
+
+# multi-homed machines require an EIP to get an auto-assigned public IP
+- name: attaching elastic IP to public internal ENI {{ item.interface.id }}
+  local_action:
+    module: ec2_eip
+    state: present
+    in_vpc: yes
+    release_on_disassociation: yes
+    reuse_existing_ip_allowed: yes
+    region: "{{ region }}"
+    device_id: "{{ item.interface.id }}"
+  with_items: "{{ public_eni.results }}"
+  when:
+    - not public_eni | skipped and public_eni.changed and public_eni.results|length > 0
+    
+# when deploying multiple interfaces, we need to just use the private eth0 address    
+- name: building {{ application }} host group
+  add_host: hostname="{{ item.private_ip }}" groups=postgresql ansible_ssh_private_key_file="./{{ keypair.key.name }}-private-key.pem"
+  with_items: "{{ ec2.instances }}"
+  when:
+    - not ec2 | skipped and ec2.changed and ec2.instances | length > 0
+
+- name: building {{ application }}_master host group
+  add_host: hostname="{{ ec2.instances.0.private_ip }}" groups=postgresql_master ansible_ssh_private_key_file="./{{ keypair.key.name }}-private-key.pem"
+  when:
+    - not ec2 | skipped and ec2.changed and ec2.instances | length > 0
+    - replica
+
+- name: configuring ssh for {{ application }} access
+  blockinfile:
+    state: present
+    create: yes
+    insertafter: EOF
+    path: "{{ ansible_env.HOME }}/.ssh/config"
+    marker: "# {{ application }} {mark} ANSIBLE MANAGED BLOCK"
+    block: |
+      Host dn_postgresql
+          Hostname {{ ec2.instances.0.private_ip }}
+          User centos
+          IdentityFile {{ ansible_env.PWD }}/{{ keypair.key.name }}-private-key.pem
+          StrictHostKeyChecking no
+          ProxyCommand ssh dn_jumphost -W %h:%p
+  when:
+    - not ec2 | skipped and ec2.changed and ec2.instances | length > 0
+      
+- name: building {{ application }}_replica host group
+  add_host: hostname="{{ ec2.instances.1.private_ip }}" groups=postgresql_replica ansible_ssh_private_key_file="./{{ keypair.key.name }}-private-key.pem"
+  when:
+    - not ec2 | skipped and ec2.changed and ec2.instances | length > 0
+    - replica
+
+# wait_for doesn't work with a proxy, so we need to ssh and check output
+- name: waiting for {{ item }} with {{ keypair.key.name }}-private-key.pem"
+  local_action: shell /bin/sleep 60 && /usr/bin/ssh -i "./{{ keypair.key.name }}-private-key.pem" "{{ user }}"@"{{ item }}" echo DataNexus
+  register: output
+  retries: 4
+  delay: 15
+  until: output.stdout.find('DataNexus') != -1
+  with_items: "{{ groups.postgresql }}"
+  when:
+    - not ec2|skipped and ec2.changed and ec2.instances|length > 0
