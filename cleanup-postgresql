@@ -9,7 +9,7 @@
   gather_facts: true  
   tasks:
     - name: gathering {{ region }} running instances
-      ec2_remote_facts:
+      ec2_instance_facts:
         region: "{{ region }}"
         filters:
           instance-state-name: running
