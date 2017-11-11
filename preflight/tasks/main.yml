@@ -9,21 +9,26 @@
     public_internal_interface: "{{ (internal_subnet is defined) | ternary('eth1','eth0') }}"
 
 - block:
-  - name: adding ifcfg-{{ public_internal_interface }} script
-    become: true
-    command: /usr/bin/cp /etc/sysconfig/network-scripts/ifcfg-eth0 "/etc/sysconfig/network-scripts/ifcfg-{{ public_internal_interface }}" creates="/etc/sysconfig/network-scripts/ifcfg-{{ public_internal_interface }}" 
-
-  - name: configuring ifcfg-{{ public_internal_interface }} interface
-    become: true
-    lineinfile: name="/etc/sysconfig/network-scripts/ifcfg-{{ public_internal_interface }}" regexp='^DEVICE=' line='DEVICE="{{ public_internal_interface }}"'
-
   - name: configuring no default route on eth0 for {{ application }}
     become: true
-    lineinfile: name="/etc/sysconfig/network-scripts/ifcfg-eth0" regexp='^DEFROUTE=' line='DEFROUTE="no"'
-  
+    lineinfile: name="/etc/sysconfig/network-scripts/ifcfg-eth0" regexp='^DEFROUTE=' line='DEFROUTE=no'
+    
+  - name: creating ifcfg-{{ public_internal_interface }}
+    become: true
+    blockinfile:
+      path: "/etc/sysconfig/network-scripts/ifcfg-{{ public_internal_interface }}"
+      create: yes
+      mode: 0644
+      block: |
+        BOOTPROTO=dhcp
+        DEVICE={{ public_internal_interface }}
+        ONBOOT=yes
+        TYPE=Ethernet
+        USERCTL=no
   - name: restart networking
     become: true
-    systemd: "name=network state=restarted"    
+    systemd: "name=network state=restarted" 
+  
   when:
     - ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
     - public_internal_interface == 'eth1'
