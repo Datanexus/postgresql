@@ -6,6 +6,7 @@
 - name: launching VM
   vars_files:
     - "{{ configuration }}"
+    - vars/postgresql.yml
   hosts: localhost
   connection: local
   gather_facts: true
