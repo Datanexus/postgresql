@@ -1,18 +1,24 @@
 #!/bin/sh
 # (c) Copyright 2016 DataNexus Inc.  All Rights Reserved. 
+# postgresql deployment wrapper
 
-export AWS_PROFILE=datanexus    # set this to the desired AWS profile in ~/.aws/credentials
+export application=postgresql   # application overlay to deploy
+export trigger=full             # keyword parameter for full stack
+: ${AWS_PROFILE:=datanexus} && export AWS_PROFILE=$AWS_PROFILE    # sets this to a reasonable ~/.aws/credentials default
 
 if [ $# -eq 0 ] || [ "$1" == "-h" ] ; then
     echo "Usage:  `basename $0` [-h]\t\thelp"
-    echo "\t`basename $0` [aws | osp | FILE]\tuse aws, osp, or FILE configuration file"
+    echo "\t`basename $0` [$trigger] FILE\tdeploy $application overlay with FILE configuration; optionally deploy full stack "
     exit 0
 fi
 
-if [ $1 == "aws" ] || [ $1 == "osp" ]; then
-  export configuration="$1-configuration.yml"
-else
+# pass just the config assume we want only the overlay
+if [ -f $1 ] && [ -s $1 ]; then
+  export tags=$application
   export configuration="$1"
+elif [ $# -eq 2 ] && [ $1 == $trigger ] && [ -f $2 ] && [ -s $2 ]; then
+  export tags="vm,$application"
+  export configuration="$2"
 fi
 
-./provision-postgresql -e "configuration=$configuration"
+./provision-postgresql --tags "$tags" -e "configuration=$configuration"

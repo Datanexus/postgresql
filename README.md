@@ -27,7 +27,7 @@ The following settings are optional. If not defined, they will be replaced with 
 
     cluster: a
     role: none
-    dataflow: none
+    flow: none
 Replace REPLICA with a `yes` or `no` to indicate whether you want a standalone server or master/replica pair.
 
     replica: yes
@@ -78,7 +78,7 @@ The following settings are optional. If not defined, they will be replaced with 
 
     cluster: a
     role: none
-    dataflow: none
+    flow: none
 Replace REPLICA with a `yes` or `no` to indicate whether you want a standalone server or master/replica pair.
 
     replica: REPLICA
@@ -118,9 +118,15 @@ Replace ZONE with the configured OSP zone.
     
 ## deployment
 ### amazon web services
-To deploy on AWS (approximately 12 minutes for a standalone)
+You will  want to set your AWS_PROFILE to your preferred credentials.
 
-    ./deploy aws
+Assuming `aws.yml` is the name of the inventory configuration file.  To deploy the postgresql overlay:
+
+    ./deploy aws.yml
+    
+To deploy both a VM and postgresql overlay:
+
+    ./deploy full aws.yml
 
 Expected running times:
 
@@ -128,9 +134,13 @@ Expected running times:
 * master/replica approximately 19 minutes
 
 ### openstack
-To deploy on OSP:
-  
-    ./deploy osp
+Assuming `osp.yml` is the name of the inventory configuration file.  To deploy the postgresql overlay:
+
+    ./deploy osp.yml
+    
+To deploy both a VM and postgresql overlay:
+
+    ./deploy full osp.yml
 
 Expected running times:
 
@@ -138,17 +148,11 @@ Expected running times:
 * master/replica approximately 16 minutes
 
 ## testing
-If the `deploy` code ran without errors, that's a pretty good indicator of a successful deployment. However, you can run the following to be sure.
+If the `deploy` code ran without errors, that's a pretty good indicator of a successful deployment. However, you can run the following to be sure:
 
-### amazon web services
-To test an AWS deployment:
+To test either a standalone or cluster deployment with the configuration of `aws.yml`:
 
-    ./test aws
-
-### openstack
-To test an OSP deployment:
-  
-    ./test osp
+    ./test aws.yml
         
 ### expected results
 Depending on your configuration (standalone vs replica), you will see various skipped plays, this is normal. Ignore the majority of the output until the end when you'll see the following:

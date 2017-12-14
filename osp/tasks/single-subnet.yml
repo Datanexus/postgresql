@@ -125,7 +125,7 @@
     cluster: "{{ cluster | default ('a') }}"
 
 - set_fact:
-    dataflow: "{{ dataflow | default ('none') }}"
+    flow: "{{ flow | default ('none') }}"
 
 # create standalone/master volume here since OSP only mounts pre-exiting volumes
 - name: creating standalone/master {{ data_volume }}GB
@@ -158,7 +158,7 @@
       Application: "{{ application }}"
       Cluster: "{{ cluster }}"
       Role: "{{ role }}"
-      Dataflow: "{{ dataflow }}"
+      Flow: "{{ flow }}"
     region_name: "{{ region }}"
     availability_zone: "{{ zone }}"
     image: "{{ image }}"
@@ -203,7 +203,7 @@
         Application: "{{ application }}"
         Cluster: "{{ cluster }}"
         Role: "{{ item }}"
-        Dataflow: "{{ dataflow }}"    
+        Flow: "{{ flow }}"    
       region_name: "{{ region }}"
       availability_zone: "{{ zone }}"
       image: "{{ image }}"

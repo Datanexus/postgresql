@@ -18,7 +18,7 @@
           "tag:Domain": "{{ domain }}"
           "tag:Application": "{{ application }}"
           "tag:Cluster": "{{ cluster | default ('a') }}"
-          "tag:Dataflow": "{{ dataflow | default ('none') }}"
+          "tag:Flow": "{{ flow | default ('none') }}"
       register: instance_facts
 
     - name: gathering {{ region }} available interfaces
