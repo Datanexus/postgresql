@@ -113,7 +113,7 @@
       Application: "{{ application }}"
       Cluster: "{{ cluster | default ('a') }}"
       Role: "{{ role | default ('none') }}"
-      Flow: "{{ flow | default ('none') }}"
+      Dataflow: "{{ dataflow | default ('none') }}"
     instance_tags:
       Name: "{{ project }}_{{ application }}"
       Tenant: "{{ tenant }}"
@@ -123,7 +123,7 @@
       Application: postgresql
       Cluster: "{{ cluster | default ('a') }}"
       Role: "{{ role | default ('none') }}"
-      Flow: "{{ flow | default ('none') }}"
+      Dataflow: "{{ dataflow | default ('none') }}"
     ebs_optimized: false
     volumes:
       - device_name: /dev/sda1

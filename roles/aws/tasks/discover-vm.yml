@@ -11,7 +11,7 @@
       "tag:Domain": "{{ domain }}"
       "tag:Application": postgresql
       "tag:Cluster": "{{ cluster | default ('a') }}"
-      "tag:Flow": "{{ flow | default ('none') }}"
+      "tag:Dataflow": "{{ dataflow | default ('none') }}"
   register: postgresql_instances
   when: cloud == 'aws'
 
@@ -33,7 +33,7 @@
       "tag:Application": postgresql
       "tag:Cluster": "{{ cluster | default ('a') }}"
       "tag:Role": master
-      "tag:Flow": "{{ flow | default ('none') }}"
+      "tag:Dataflow": "{{ dataflow | default ('none') }}"
   register: postgresql_master_instances
   when: cloud == 'aws'
 
@@ -55,7 +55,7 @@
       "tag:Application": postgresql
       "tag:Cluster": "{{ cluster | default ('a') }}"
       "tag:Role": replica
-      "tag:Flow": "{{ flow | default ('none') }}"
+      "tag:Dataflow": "{{ dataflow | default ('none') }}"
   register: postgresql_replica_instances
   when: cloud == 'aws'
 

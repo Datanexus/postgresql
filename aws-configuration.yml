@@ -11,7 +11,7 @@ region: AWS_REGION
 cluster: CLUSTER
 replica: REPLICA
 role: ROLE
-dataflow: DATAFLOW
+dataflow: FLOW
 user: USER
 image: AMI
 type: TYPE

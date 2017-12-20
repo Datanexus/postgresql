@@ -27,7 +27,7 @@ The following settings are optional. If not defined, they will be replaced with 
 
     cluster: a
     role: none
-    flow: none
+    dataflow: none
 Replace REPLICA with a `yes` or `no` to indicate whether you want a standalone server or master/replica pair.
 
     replica: yes
@@ -78,7 +78,7 @@ The following settings are optional. If not defined, they will be replaced with 
 
     cluster: a
     role: none
-    flow: none
+    dataflow: none
 Replace REPLICA with a `yes` or `no` to indicate whether you want a standalone server or master/replica pair.
 
     replica: REPLICA

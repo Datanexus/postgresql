@@ -1,12 +1,12 @@
 # (c) 2016 DataNexus Inc.  All Rights Reserved.
 #
-# launch an OSP virtual machine on multiple subnets (assumes SSH proxy)
+# launch an OSP virtual machine in a single subnet (no SSH proxy)
 ---
-- name: gathering facts for {{ private }} in {{ region }}
+- name: gathering facts for {{ public }} in {{ region }}
   os_networks_facts:
     cloud: "{{ tenant }}"
     filters:
-      id: "{{ internal_uuid }}"
+      id: "{{ external_uuid }}"
   
 - set_fact:
     private_management_subnet_id: "{{ openstack_networks.0.id }}"
@@ -22,9 +22,6 @@
     description: "ssh ingress and unrestricted egress rules (ansible)"
   register: dnsg_ssh
 
-#
-# CNK - okay here we need to figure out the right source CIDR block
-#
 - name: adding ports to {{ dnsg_ssh.secgroup.description }}
   os_security_group_rule:
     cloud: "{{ tenant }}"
@@ -32,7 +29,7 @@
     protocol: tcp
     port_range_min: 22
     port_range_max: 22
-    remote_ip_prefix: "{{ internal_subnet }}"
+    remote_ip_prefix: 0.0.0.0/0
     
 - name: creating {{ application }} security group
   os_security_group:
@@ -49,7 +46,7 @@
     protocol: tcp
     port_range_min: 5432
     port_range_max: 5432
-    remote_ip_prefix: "{{ (external_subnet is defined) | ternary(external_subnet, internal_subnet) }}"
+    remote_ip_prefix: "{{ external_subnet }}"
 
 - name: checking {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-private-key.pem
   stat: path="./{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-private-key.pem"
@@ -128,7 +125,7 @@
     cluster: "{{ cluster | default ('a') }}"
 
 - set_fact:
-    flow: "{{ flow | default ('none') }}"
+    dataflow: "{{ dataflow | default ('none') }}"
 
 # create standalone/master volume here since OSP only mounts pre-exiting volumes
 - name: creating standalone/master {{ data_volume }}GB
@@ -143,11 +140,11 @@
 
 - name: defining nics based on subnets
   set_fact:
-    nic_list: "{{ (external_uuid is defined) | ternary([{ 'net-id': internal_uuid }, { 'net-id': external_uuid }], [{ 'net-id': internal_uuid }]) }}"
+    nic_list: "{{ (internal_uuid is defined) | ternary([{ 'net-id': internal_uuid }, { 'net-id': external_uuid }], [{ 'net-id': external_uuid }]) }}"
 
 # openstack instance names must be unique, so we now have this naming disaster
 # the count trick seems to be necessary to generate a list of results for a single instance
-- name: launching standalone (master) instance on dual subnets
+- name: launching standalone (master) instance on a single subnet
   os_server:
     state: present
     cloud: "{{ tenant }}"
@@ -161,13 +158,13 @@
       Application: "{{ application }}"
       Cluster: "{{ cluster }}"
       Role: "{{ role }}"
-      Flow: "{{ flow }}"    
+      Dataflow: "{{ dataflow }}"
     region_name: "{{ region }}"
     availability_zone: "{{ zone }}"
     image: "{{ image }}"
     key_name: "{{ osp_keypair.key.name }}"
     timeout: 200
-    auto_ip: yes
+    floating_ip_pools: "{{ float_pool }}"
     reuse_ips: true
     flavor: "{{ type }}"
     nics: "{{ nic_list }}"
@@ -177,7 +174,7 @@
   with_sequence: count={{ count }}
   when:
     - not replica
-    
+
 # this handles the master/replica pair
 - block: 
   - set_fact:
@@ -206,13 +203,13 @@
         Application: "{{ application }}"
         Cluster: "{{ cluster }}"
         Role: "{{ item }}"
-        Flow: "{{ flow }}"    
+        Dataflow: "{{ dataflow }}"    
       region_name: "{{ region }}"
       availability_zone: "{{ zone }}"
       image: "{{ image }}"
       key_name: "{{ osp_keypair.key.name }}"
       timeout: 200
-      auto_ip: yes
+      floating_ip_pools: "{{ float_pool }}"
       reuse_ips: true
       flavor: "{{ type }}"
       nics: "{{ nic_list }}"
@@ -229,45 +226,30 @@
 - set_fact:
     osp: "{{ (replica) | ternary(osp_pair, osp_standalone) }}"
 
-# this only gets executed when we have an internal and external network
-- name: assigning {{ float_pool }} floating ip to {{ item.server.addresses.public.0['addr'] }}
-  os_floating_ip:
-    state: present
-    reuse: true
-    cloud: "{{ tenant }}"
-    server: "{{ item.server.id }}"
-    fixed_address: "{{ (external_uuid is defined) | ternary(item.server.addresses.public.0['addr'],item.server.addresses.private.0['addr']) }}"
-    network: "{{ float_pool }}"
-    nat_destination: "{{ (external_uuid is defined) | ternary(external_uuid, internal_uuid) }}"
-  with_items: "{{ osp.results }}"
-  register: 
-  when:
-    - not osp|skipped and osp.changed and osp.results|length > 0
-    - internal_uuid is defined
-
-# when deploying multiple interfaces, we need to just use the private eth0 address
+# when deploying a single interface, we need to just use the floating IP note the private internal
 - name: building {{ application }} host group
-  add_host: hostname="{{ item.server.addresses.private.0['addr'] }}" groups="{{ application }}" ansible_ssh_private_key_file="./{{ osp_keypair.key.name }}-private-key.pem" 
+  add_host: hostname="{{ item.server.addresses.private.1['addr'] }}" groups="{{ application }}" ansible_ssh_private_key_file="./{{ osp_keypair.key.name }}-private-key.pem" 
   with_items: "{{ osp.results }}"
   when:
     - not osp|skipped and osp.changed and osp.results|length > 0    
-    - item.server.addresses.private.0['OS-EXT-IPS:type'] == 'fixed'
+    - item.server.addresses.private.1['OS-EXT-IPS:type'] == 'floating'
   
-- name: building {{ application }}_master host group
-  add_host: hostname="{{ osp.results.0.server.addresses.private.0['addr'] }}" groups="{{ application }}_master" ansible_ssh_private_key_file="./{{ osp_keypair.key.name }}-private-key.pem" public_internal="{{ osp.results.0.server.networks.public.0 }}"  
-  when:
-    - replica
-    - not osp|skipped and osp.changed and osp.results|length > 0    
-    - osp.results.0.server.addresses.private.0['OS-EXT-IPS:type'] == 'fixed'
+- block:
+  - name: building {{ application }}_master host group
+    add_host: hostname="{{ osp.results.0.server.addresses.private.1['addr'] }}" groups="{{ application }}_master" ansible_ssh_private_key_file="./{{ osp_keypair.key.name }}-private-key.pem"  
+    when:
+      - osp.results.0.server.addresses.private.1['OS-EXT-IPS:type'] == 'floating'
     
-- name: building {{ application }}_replica host group
-  add_host: hostname="{{ osp.results.1.server.addresses.private.0['addr'] }}" groups="{{ application }}_replica" ansible_ssh_private_key_file="./{{ osp_keypair.key.name }}-private-key.pem"
+  - name: building {{ application }}_replica host group
+    add_host: hostname="{{ osp.results.1.server.addresses.private.1['addr'] }}" groups="{{ application }}_replica" ansible_ssh_private_key_file="./{{ osp_keypair.key.name }}-private-key.pem"
+    when:
+      - osp.results.1.server.addresses.private.1['OS-EXT-IPS:type'] == 'floating'
   when:
     - replica
     - not osp|skipped and osp.changed and osp.results|length > 0    
-    - osp.results.1.server.addresses.private.0['OS-EXT-IPS:type'] == 'fixed'
-
+    
 # wait_for doesn't work with a proxy, so we need to ssh and check output
+# for a single interface, we need the external float IP
 - name: waiting for instance boot
   local_action: shell /bin/sleep 20 && /usr/bin/ssh -i ./{{ osp_keypair.key.name }}-private-key.pem "{{ item }}" echo DataNexus
   register: output
@@ -306,9 +288,9 @@
     path: "{{ ansible_env.PWD }}/{{ project }}-{{ application }}.hostfile"
     block: |
       [{{ application }}_master]
-      {{ osp.results.0.server.addresses.private.0['addr'] }} ansible_user={{ user }} ansible_ssh_private_key_file={{ ansible_env.PWD }}/{{ osp_keypair.key.name }}-private-key.pem
+      {{ osp.results.0.server.addresses.private.1['addr'] }} ansible_user={{ user }} ansible_ssh_private_key_file={{ ansible_env.PWD }}/{{ osp_keypair.key.name }}-private-key.pem
       [{{ application }}_replica]
-      {{ osp.results.1.server.addresses.private.0['addr'] }} ansible_user={{ user }} ansible_ssh_private_key_file={{ ansible_env.PWD }}/{{ osp_keypair.key.name }}-private-key.pem
+      {{ osp.results.1.server.addresses.private.1['addr'] }} ansible_user={{ user }} ansible_ssh_private_key_file={{ ansible_env.PWD }}/{{ osp_keypair.key.name }}-private-key.pem
   when:
-    - replica
     - not osp | skipped and osp.changed and osp.results | length > 0
+    - replica
