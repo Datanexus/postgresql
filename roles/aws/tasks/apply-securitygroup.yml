@@ -1,0 +1,31 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# Apply AWS postgresql security group rules
+---
+- ec2_instance_facts:
+    region: "{{ region }}"
+    filters:
+      instance-state-name: running
+      "tag:Tenant": "{{ tenant }}"
+      "tag:Project": "{{ project }}"
+      "tag:Domain": "{{ domain }}"
+      "tag:Application": "{{ application }}"
+      "tag:Cluster": "{{ cluster | default ('a') }}"
+      "tag:Dataflow": "{{ dataflow | default ('none') }}"
+  register: all_postgresql_nodes
+  when: cloud == 'aws'
+
+# construct list of all interfaces attached to postgresql nodes
+- set_fact:
+    postgresql_interfaces: "{{ all_postgresql_nodes.instances | map(attribute='network_interfaces') | list }}"
+  when: all_postgresql_nodes.instances | length > 0
+  
+# apply both postgresql rules and the default SSH rule
+- name: applying {{ application }} security rules to interface 1
+  ec2_eni:
+    region: "{{ region }}"
+    eni_id: "{{ item.network_interface_id }}"
+    security_groups:
+      - "{{ sg_postgresql.group_id }}"
+  with_items: "{{ postgresql_interfaces }}"
+  when: item.attachment.device_index == 1

@@ -1,0 +1,68 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# discover AWS inventory
+---
+- ec2_instance_facts:
+    region: "{{ region }}"
+    filters:
+      instance-state-name: running
+      "tag:Tenant": "{{ tenant }}"
+      "tag:Project": "{{ project }}"
+      "tag:Domain": "{{ domain }}"
+      "tag:Application": postgresql
+      "tag:Cluster": "{{ cluster | default ('a') }}"
+      "tag:Dataflow": "{{ dataflow | default ('none') }}"
+  register: postgresql_instances
+  when: cloud == 'aws'
+
+- name: building postgresql host group
+  add_host: hostname="{{ item }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="./{{cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  with_items: "{{ postgresql_instances.instances | map (attribute='private_ip_address') | list }}"
+  when:
+    - cloud == 'aws'
+    - postgresql_instances is defined
+    - postgresql_instances.instances|length > 0
+
+- ec2_instance_facts:
+    region: "{{ region }}"
+    filters:
+      instance-state-name: running
+      "tag:Tenant": "{{ tenant }}"
+      "tag:Project": "{{ project }}"
+      "tag:Domain": "{{ domain }}"
+      "tag:Application": postgresql
+      "tag:Cluster": "{{ cluster | default ('a') }}"
+      "tag:Role": master
+      "tag:Dataflow": "{{ dataflow | default ('none') }}"
+  register: postgresql_master_instances
+  when: cloud == 'aws'
+
+- name: building postgresql host group
+  add_host: hostname="{{ item }}" groupname=postgresql_master ansible_user="{{ user }}" ansible_ssh_private_key_file="./{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  with_items: "{{ postgresql_master_instances.instances | map (attribute='private_ip_address') | list }}"
+  when:
+    - cloud == 'aws'
+    - postgresql_master_instances is defined
+    - postgresql_master_instances.instances|length > 0
+
+- ec2_instance_facts:
+    region: "{{ region }}"
+    filters:
+      instance-state-name: running
+      "tag:Tenant": "{{ tenant }}"
+      "tag:Project": "{{ project }}"
+      "tag:Domain": "{{ domain }}"
+      "tag:Application": postgresql
+      "tag:Cluster": "{{ cluster | default ('a') }}"
+      "tag:Role": replica
+      "tag:Dataflow": "{{ dataflow | default ('none') }}"
+  register: postgresql_replica_instances
+  when: cloud == 'aws'
+
+- name: building postgresql host group
+  add_host: hostname="{{ item }}" groupname=postgresql_replica ansible_user="{{ user }}" ansible_ssh_private_key_file="./{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  with_items: "{{ postgresql_replica_instances.instances | map (attribute='private_ip_address') | list }}"
+  when:
+    - cloud == 'aws'
+    - postgresql_replica_instances is defined
+    - postgresql_replica_instances.instances|length > 0

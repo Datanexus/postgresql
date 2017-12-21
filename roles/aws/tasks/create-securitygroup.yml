@@ -1,0 +1,21 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# create AWS postgresql security group rules
+---
+- name: creating postgresql security group
+  local_action:
+    module: ec2_group
+    name: "dnsg_{{ project }}_postgresql_public_internal"
+    description: "postgresql ingress and unrestricted egress rules (ansible)"
+    vpc_id: "{{ specified_vpc.vpcs.0.id }}"
+    region: "{{ region }}"
+    rules:
+      - proto: tcp
+        from_port: 5432
+        to_port: 5432
+        cidr_ip: "{{ external_subnet }}"
+    rules_egress:
+      # Allow all outbound
+      - proto: all
+        cidr_ip: 0.0.0.0/0
+  register: sg_postgresql

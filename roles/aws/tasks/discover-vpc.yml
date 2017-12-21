@@ -1,0 +1,41 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# discover AWS vpc and set facts
+---  
+- name: retrieving default VPC ID
+  local_action:
+    module: ec2_vpc_net_facts
+    region: "{{ region }}"
+    filters:
+      cidr_block: "{{ cidr_block }}"
+  register: specified_vpc
+  
+- name: retrieving {{ internal_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }}
+  local_action:
+    module: ec2_vpc_subnet_facts
+    region: "{{ region }}"
+    filters:
+      cidr_block: "{{ internal_subnet }}"
+  register: internal_subnet_result
+  when:
+    - internal_subnet is defined
+
+- name: retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }}
+  local_action:
+    module: ec2_vpc_subnet_facts
+    region: "{{ region }}"
+    filters:
+      cidr_block: "{{ external_subnet }}"
+  register: external_subnet_result
+  when:
+    - external_subnet is defined
+  
+- set_fact:
+    internal_subnet_id: "{{ internal_subnet_result.subnets.0.id }}"
+  when:
+    - internal_subnet_result.skipped is not defined
+
+- set_fact:
+    external_subnet_id: "{{ external_subnet_result.subnets.0.id }}"
+  when:
+    - external_subnet_result.skipped is not defined

@@ -3,20 +3,86 @@
 #
 # main routine for provisioning postgresql
 ---
-- name: launching VM
+- name: discovering {{ cloud }} networking
+  tags:
+    - postgresql
+    - vm
+  hosts: localhost
   vars_files:
     - "{{ configuration }}"
     - vars/postgresql.yml
+  gather_facts: no
+  tasks:
+    - include_role:
+        name: aws
+        tasks_from: discover-vpc
+      when: cloud == 'aws'
+
+- name: creating {{ cloud }} security groups
+  tags:
+    - postgresql
+    - vm
+  hosts: localhost
+  vars_files:
+    - "{{ configuration }}"
+  gather_facts: no
+  tasks:
+    - include_role:
+        name: aws
+        tasks_from: create-securitygroup
+      when: cloud == 'aws'
+
+- name: launching VM
+  tags: vm
+  vars_files:
+    - vars/postgresql.yml
+    - "{{ configuration }}"
   hosts: localhost
   connection: local
   gather_facts: true
-  roles:
-    - { role: aws, when: cloud == 'aws' }
-    - { role: osp, when: cloud == 'osp' }
+  tasks:
+    - include_role:
+        name: aws
+        tasks_from: launch-vm
+      when: cloud == 'aws'
+    - include_role:
+        name: osp
+        tasks_from: launch-vm
+      when: cloud == 'osp'
 
+- name: applying {{ cloud }} security groups
+  tags:
+    - postgresql
+  hosts: localhost
+  vars_files:
+    - "{{ configuration }}"
+    - vars/postgresql.yml
+  gather_facts: no
+  tasks:
+    - include_role:
+        name: aws
+        tasks_from: apply-securitygroup
+      when: cloud == 'aws'
+      
+- name: gathering {{ cloud }} inventory
+  tags:
+    - postgresql
+    - vm
+  hosts: localhost
+  vars_files:
+    - "{{ configuration }}"
+    - vars/postgresql.yml
+  gather_facts: no
+  tasks:
+    - include_role:
+        name: aws
+        tasks_from: discover-vm
+      when: cloud == 'aws'
+    
 # this is a separate step because ansible needs to gather facts on a fully configured base system
 - name: completing OS configuration
   hosts: postgresql
+  tags: vm
   vars_files:
     - "{{ configuration }}"
     - vars/postgresql.yml
@@ -24,8 +90,11 @@
   roles:
     - { role: preflight, mountpoint: "/data", when: data_volume is defined }
     - { role: http-proxy, when: http_proxy is defined }
-
+    
 - name: installing base postgresql application
+  tags:
+    - vm
+    - postgresql
   hosts: postgresql
   vars_files:
     - "{{ configuration }}"
@@ -35,6 +104,9 @@
     - { role: postgresql }
 
 - name: configuring postgresql master
+  tags: 
+    - vm
+    - postgresql
   hosts: postgresql_master
   gather_facts: no
   vars_files:
@@ -44,6 +116,9 @@
     - { role: master-streaming }
 
 - name: configuring postgresql replica
+  tags:
+    - vm
+    - postgresql
   hosts: postgresql_replica
   gather_facts: no
   vars_files:
@@ -51,4 +126,3 @@
     - vars/postgresql.yml
   roles:
     - { role: replica-streaming }
-
