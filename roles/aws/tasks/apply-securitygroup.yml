@@ -20,7 +20,7 @@
     postgresql_interfaces: "{{ all_postgresql_nodes.instances | map(attribute='network_interfaces') | list }}"
   when: all_postgresql_nodes.instances | length > 0
   
-# apply both postgresql rules and the default SSH rule
+# apply postgresql rule
 - name: applying {{ application }} security rules to interface 1
   ec2_eni:
     region: "{{ region }}"

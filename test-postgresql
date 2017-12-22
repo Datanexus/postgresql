@@ -8,7 +8,7 @@
   vars_files:
     - "{{ configuration }}"
     - vars/postgresql.yml
-  gather_facts: no
+  gather_facts: yes
   tasks:
     - include_role:
         name: aws
@@ -25,19 +25,19 @@
       become: yes
       become_user: postgres
       register: create_out
-      when: not replica
+      when: groups['postgresql_master'] is not defined
         
     - debug: msg="{{ create_out.stdout_lines }}"
-      when: not replica
+      when: groups['postgresql_master'] is not defined
 
     - command: "/usr/bin/psql -c 'select * from t_random limit 15;'"
       become: yes
       become_user: postgres
       register: select_out
-      when: not replica
+      when: groups['postgresql_master'] is not defined
         
     - debug: msg="{{ select_out.stdout_lines }}"
-      when: not replica
+      when: groups['postgresql_master'] is not defined
 
 # run the create and select on the master/replica pair                 
 - hosts: "{{ application }}_master"
@@ -74,10 +74,10 @@
       become: yes
       become_user: postgres
       register: drop_out
-      when: not replica
+      when: groups['postgresql_master'] is not defined
       
     - debug: msg="{{ drop_out.stdout_lines }}"
-      when: not replica
+      when: groups['postgresql_master'] is not defined
         
 - hosts: "{{ application }}_master"
   vars_files:

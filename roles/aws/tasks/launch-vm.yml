@@ -43,13 +43,17 @@
   when:
     - image is not defined
 
+- name: setting {{ key_path }}
+  set_fact: key_path="{{ ansible_env.PWD }}"
+  when: key_path is not defined
+  
 - name: checking {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem
-  stat: path="./{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  stat: path="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
   register: existing_key
 
 - block: 
   - name: generating public key from {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem
-    command: "/usr/bin/ssh-keygen -f {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem -y"
+    command: "/usr/bin/ssh-keygen -f {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem -y"
     register: public_key_from_pem
     
   - name: using existing {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}
@@ -75,7 +79,7 @@
 
   - name: saving {{ region }}-{{ project }}-{{ application }}-{{ domain }}
     copy:
-      dest: "./{{ cloud }}-{{ keypair.key.name }}-private-key.pem"
+      dest: "{{ key_path }}/{{ cloud }}-{{ keypair.key.name }}-private-key.pem"
       content: "{{ keypair.key.private_key }}"
       mode: 0400
   when:
@@ -197,19 +201,6 @@
   with_items: "{{ public_eni.results }}"
   when:
     - not public_eni | skipped and public_eni.changed and public_eni.results|length > 0
-    
-# # when deploying multiple interfaces, we need to just use the private eth0 address
-# - name: building {{ application }} host group
-#   add_host: hostname="{{ item.private_ip }}" groups=postgresql ansible_ssh_private_key_file="./{{ keypair.key.name }}-private-key.pem"
-#   with_items: "{{ ec2.instances }}"
-#   when:
-#     - not ec2 | skipped and ec2.changed and ec2.instances | length > 0
-
-# - name: building {{ application }}_master host group
-#   add_host: hostname="{{ ec2.instances.0.private_ip }}" groups=postgresql_master ansible_ssh_private_key_file="./{{ keypair.key.name }}-private-key.pem"
-#   when:
-#     - not ec2 | skipped and ec2.changed and ec2.instances | length > 0
-#     - replica
 
 - name: configuring ssh for {{ application }} access
   blockinfile:
@@ -227,17 +218,10 @@
           ProxyCommand ssh dn_jumphost -W %h:%p
   when:
     - not ec2 | skipped and ec2.changed and ec2.instances | length > 0
-      
-# - name: building {{ application }}_replica host group
-#   add_host: hostname="{{ ec2.instances.1.private_ip }}" groups=postgresql_replica ansible_ssh_private_key_file="./{{ keypair.key.name }}-private-key.pem"
-#   when:
-#     - not ec2 | skipped and ec2.changed and ec2.instances | length > 0
-#     - replica
-
   
 # wait_for doesn't work with a proxy, so we need to ssh and check output
 - name: waiting for {{ item }} with {{ keypair.key.name }}-private-key.pem"
-  local_action: shell /bin/sleep 60 && /usr/bin/ssh -i "./{{ cloud }}-{{ keypair.key.name }}-private-key.pem" "{{ user }}"@"{{ item.private_ip }}" echo DataNexus
+  local_action: shell /bin/sleep 60 && /usr/bin/ssh -i "{{ key_path }}/{{ cloud }}-{{ keypair.key.name }}-private-key.pem" "{{ user }}"@"{{ item.private_ip }}" echo DataNexus
   register: output
   retries: 4
   delay: 15

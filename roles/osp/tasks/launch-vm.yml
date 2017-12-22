@@ -2,6 +2,10 @@
 #
 # launch OSP virtual machine(s)
 ---
+- name: setting {{ key_path }}
+  set_fact: key_path="{{ ansible_env.PWD }}"
+  when: key_path is not defined
+    
 - name: launching instance(s) on a single subnet
   import_tasks: single-subnet.yml
   when: internal_uuid is not defined
