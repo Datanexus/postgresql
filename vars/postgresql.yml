@@ -1,6 +1,8 @@
 # (c) 2016 DataNexus Inc.  All Rights Reserved.
 ---
 application: postgresql
+postgresql_user: postgres
+postgresql_group: postgres
 postgresql_major_version: 9
 postgresql_minor_version: 6
 postgresql_rev_version: "5-1"
