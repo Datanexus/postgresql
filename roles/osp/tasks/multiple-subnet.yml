@@ -52,7 +52,7 @@
     remote_ip_prefix: "{{ (external_subnet is defined) | ternary(external_subnet, internal_subnet) }}"
 
 - name: checking {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-private-key.pem
-  stat: path="./{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-private-key.pem"
+  stat: path="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-private-key.pem"
   register: existing_key
 
 # use existing SSH key
@@ -61,7 +61,7 @@
     cloud: "{{ tenant }}"
     state: present
     name: "{{ cloud }}-{{ region }}-{{ project }}-{{ application }}"
-    public_key_file: "./{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-public-key.pem" 
+    public_key_file: "{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-public-key.pem" 
   register: existing_osp_keypair    
   when:
     - existing_key.stat.exists
@@ -77,7 +77,7 @@
 
   - name: saving {{ cloud }}-{{ region }}-{{ project }}-{{ application }}
     copy:
-      dest: "./{{ new_osp_keypair.key.name }}-private-key.pem"
+      dest: "{{ key_path }}/{{ new_osp_keypair.key.name }}-private-key.pem"
       content: "{{ new_osp_keypair.key.private_key }}"
       mode: 0400
     when:
@@ -85,7 +85,7 @@
   
   - name: saving {{ cloud }}-{{ region }}-{{ project }}-{{ application }}
     copy:
-      dest: "./{{ new_osp_keypair.key.name }}-public-key.pem"
+      dest: "{{ key_path }}/{{ new_osp_keypair.key.name }}-public-key.pem"
       content: "{{ new_osp_keypair.key.public_key }}"
       mode: 0400
     when:
@@ -247,21 +247,21 @@
 
 # when deploying multiple interfaces, we need to just use the private eth0 address
 - name: building {{ application }} host group
-  add_host: hostname="{{ item.server.addresses.private.0['addr'] }}" groups="{{ application }}" ansible_ssh_private_key_file="./{{ osp_keypair.key.name }}-private-key.pem" 
+  add_host: hostname="{{ item.server.addresses.private.0['addr'] }}" groups="{{ application }}" ansible_ssh_private_key_file="{{ key_path }}/{{ osp_keypair.key.name }}-private-key.pem" 
   with_items: "{{ osp.results }}"
   when:
     - not osp|skipped and osp.changed and osp.results|length > 0    
     - item.server.addresses.private.0['OS-EXT-IPS:type'] == 'fixed'
   
 - name: building {{ application }}_master host group
-  add_host: hostname="{{ osp.results.0.server.addresses.private.0['addr'] }}" groups="{{ application }}_master" ansible_ssh_private_key_file="./{{ osp_keypair.key.name }}-private-key.pem" public_internal="{{ osp.results.0.server.networks.public.0 }}"  
+  add_host: hostname="{{ osp.results.0.server.addresses.private.0['addr'] }}" groups="{{ application }}_master" ansible_ssh_private_key_file="{{ key_path }}/{{ osp_keypair.key.name }}-private-key.pem" public_internal="{{ osp.results.0.server.networks.public.0 }}"  
   when:
     - replica
     - not osp|skipped and osp.changed and osp.results|length > 0    
     - osp.results.0.server.addresses.private.0['OS-EXT-IPS:type'] == 'fixed'
     
 - name: building {{ application }}_replica host group
-  add_host: hostname="{{ osp.results.1.server.addresses.private.0['addr'] }}" groups="{{ application }}_replica" ansible_ssh_private_key_file="./{{ osp_keypair.key.name }}-private-key.pem"
+  add_host: hostname="{{ osp.results.1.server.addresses.private.0['addr'] }}" groups="{{ application }}_replica" ansible_ssh_private_key_file="{{ key_path }}/{{ osp_keypair.key.name }}-private-key.pem"
   when:
     - replica
     - not osp|skipped and osp.changed and osp.results|length > 0    
@@ -269,7 +269,7 @@
 
 # wait_for doesn't work with a proxy, so we need to ssh and check output
 - name: waiting for instance boot
-  local_action: shell /bin/sleep 20 && /usr/bin/ssh -i ./{{ osp_keypair.key.name }}-private-key.pem "{{ item }}" echo DataNexus
+  local_action: shell /bin/sleep 20 && /usr/bin/ssh -i {{ key_path }}/{{ osp_keypair.key.name }}-private-key.pem "{{ item }}" echo DataNexus
   register: output
   retries: 4
   delay: 10
@@ -292,7 +292,7 @@
   lineinfile:
     state: present
     path: "{{ ansible_env.PWD }}/{{ project }}-{{ application }}.hostfile"
-    line: "{{ item }} ansible_user={{ user }} ansible_ssh_private_key_file={{ ansible_env.PWD }}/{{ osp_keypair.key.name }}-private-key.pem"
+    line: "{{ item }} ansible_user={{ user }} ansible_ssh_private_key_file={{ key_path }}/{{ osp_keypair.key.name }}-private-key.pem"
     insertafter: EOF
   with_items: "{{ groups[application] }}"
   when:
@@ -306,9 +306,9 @@
     path: "{{ ansible_env.PWD }}/{{ project }}-{{ application }}.hostfile"
     block: |
       [{{ application }}_master]
-      {{ osp.results.0.server.addresses.private.0['addr'] }} ansible_user={{ user }} ansible_ssh_private_key_file={{ ansible_env.PWD }}/{{ osp_keypair.key.name }}-private-key.pem
+      {{ osp.results.0.server.addresses.private.0['addr'] }} ansible_user={{ user }} ansible_ssh_private_key_file={{ key_path }}/{{ osp_keypair.key.name }}-private-key.pem
       [{{ application }}_replica]
-      {{ osp.results.1.server.addresses.private.0['addr'] }} ansible_user={{ user }} ansible_ssh_private_key_file={{ ansible_env.PWD }}/{{ osp_keypair.key.name }}-private-key.pem
+      {{ osp.results.1.server.addresses.private.0['addr'] }} ansible_user={{ user }} ansible_ssh_private_key_file={{ key_path }}/{{ osp_keypair.key.name }}-private-key.pem
   when:
     - replica
     - not osp | skipped and osp.changed and osp.results | length > 0

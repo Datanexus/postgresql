@@ -28,14 +28,16 @@
     - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-libs-{{ postgresql_version }}{{ postgresql_rpm_info }}"
 
 - block:
-  - name: setting PostgreSQL environment variables
+  - name: POSTGRESQL OVERLAY | creating default PostgreSQL profile
     template:
       src: postgres.sh.j2
-      dest: /var/lib/pgsql/.pgsql_profile
+      dest: "{{ postgresql_home_dir }}/.pgsql_profile"
+      owner: "{{ postgresql_user }}"
+      group: "{{ postgresql_user }}"
       mode: 0644
     become: yes
 
-  - name: applying postgresql customizations
+  - name: POSTGRESQL OVERLAY | applying postgresql customizations
     blockinfile:
       name: "/etc/systemd/system/postgresql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}.service"
       mode: 0644

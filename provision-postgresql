@@ -9,10 +9,12 @@
     - vm
   hosts: localhost
   vars_files:
-    - "{{ configuration }}"
     - vars/postgresql.yml
   gather_facts: no
   tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
+      
     - include_role:
         name: aws
         tasks_from: discover-vpc
@@ -23,10 +25,11 @@
     - postgresql
     - vm
   hosts: localhost
-  vars_files:
-    - "{{ configuration }}"
   gather_facts: no
   tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
+      
     - include_role:
         name: aws
         tasks_from: create-securitygroup
@@ -36,11 +39,13 @@
   tags: vm
   vars_files:
     - vars/postgresql.yml
-    - "{{ configuration }}"
   hosts: localhost
   connection: local
-  gather_facts: true
+  gather_facts: yes
   tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
+      
     - include_role:
         name: aws
         tasks_from: launch-vm
@@ -55,10 +60,12 @@
     - postgresql
   hosts: localhost
   vars_files:
-    - "{{ configuration }}"
     - vars/postgresql.yml
   gather_facts: no
   tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
+      
     - include_role:
         name: aws
         tasks_from: apply-securitygroup
@@ -70,10 +77,12 @@
     - vm
   hosts: localhost
   vars_files:
-    - "{{ configuration }}"
     - vars/postgresql.yml
   gather_facts: no
   tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
+      
     - include_role:
         name: aws
         tasks_from: discover-vm
@@ -84,12 +93,21 @@
   hosts: postgresql
   tags: vm
   vars_files:
-    - "{{ configuration }}"
     - vars/postgresql.yml
   gather_facts: yes
-  roles:
-    - { role: preflight, mountpoint: "/data", when: data_volume is defined }
-    - { role: http-proxy, when: http_proxy is defined }
+  tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
+    
+    - include_role:
+        name: preflight
+      vars:
+        mountpoint: "/data"
+      when: data_volume is defined
+    
+    - include_role:
+        name: http-proxy
+      when: http_proxy is defined
     
 - name: installing base postgresql application
   tags:
@@ -97,12 +115,15 @@
     - postgresql
   hosts: postgresql
   vars_files:
-    - "{{ configuration }}"
     - vars/postgresql.yml
   gather_facts: yes
-  roles:
-    - { role: postgresql }
-
+  tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
+    
+    - include_role:
+        name: postgresql
+ 
 - name: configuring postgresql master
   tags: 
     - vm
@@ -110,10 +131,13 @@
   hosts: postgresql_master
   gather_facts: no
   vars_files:
-    - "{{ configuration }}"
     - vars/postgresql.yml
-  roles:
-    - { role: master-streaming }
+  tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
+    
+    - include_role:
+        name: master-streaming
 
 - name: configuring postgresql replica
   tags:
@@ -122,7 +146,10 @@
   hosts: postgresql_replica
   gather_facts: no
   vars_files:
-    - "{{ configuration }}"
     - vars/postgresql.yml
-  roles:
-    - { role: replica-streaming }
+  tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
+    
+    - include_role:
+        name: replica-streaming

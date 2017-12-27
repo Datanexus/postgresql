@@ -1,41 +1,126 @@
 # (c) 2016 DataNexus Inc.  All Rights Reserved.
 #
 # discover AWS vpc and set facts
----  
-- name: retrieving default VPC ID
+---
+- name: retrieving default VPC ID by name
+  local_action:
+    module: ec2_vpc_net_facts
+    region: "{{ region }}"
+    filters:
+      "tag:Name": "{{ tenant }}_{{ domain }}"
+  register: specified_vpc_by_name
+  when:
+    - cidr_block is not defined
+    
+- name: retrieving default VPC ID by CIDR
   local_action:
     module: ec2_vpc_net_facts
     region: "{{ region }}"
     filters:
       cidr_block: "{{ cidr_block }}"
-  register: specified_vpc
-  
-- name: retrieving {{ internal_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }}
+  register: specified_vpc_by_cidr
+  when:
+    - cidr_block is defined
+
+- name: setting vpc
+  set_fact:
+    specified_vpc: "{{ (specified_vpc_by_name.vpcs is defined) | ternary(specified_vpc_by_name,specified_vpc_by_cidr) }}"
+
+- name: retrieving {{ internal_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by name
+  local_action:
+    module: ec2_vpc_subnet_facts
+    region: "{{ region }}"
+    filters:
+      "tag:Name": 'datanexus private internal'
+  register: internal_subnet_by_name
+  when:
+    - internal_subnet is not defined
+    
+- name: retrieving {{ internal_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by CIDR
   local_action:
     module: ec2_vpc_subnet_facts
     region: "{{ region }}"
     filters:
       cidr_block: "{{ internal_subnet }}"
-  register: internal_subnet_result
+  register: internal_subnet_by_cidr
   when:
     - internal_subnet is defined
 
-- name: retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }}
+- name: setting internal private subnet
+  set_fact:
+    internal_subnet_result: "{{ (internal_subnet_by_name.subnets is defined) | ternary(internal_subnet_by_name,internal_subnet_by_cidr) }}"
+
+- name: retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by name
+  local_action:
+    module: ec2_vpc_subnet_facts
+    region: "{{ region }}"
+    filters:
+      "tag:Name": 'datanexus public internal'
+  register: external_subnet_by_name
+  when:
+    - external_subnet is not defined
+    
+- name: retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by CIDR
   local_action:
     module: ec2_vpc_subnet_facts
     region: "{{ region }}"
     filters:
       cidr_block: "{{ external_subnet }}"
-  register: external_subnet_result
+  register: external_subnet_by_cidr
   when:
     - external_subnet is defined
+
+- name: setting internal public subnet
+  set_fact:
+    external_subnet_result: "{{ (external_subnet_by_name.subnets is defined) | ternary(external_subnet_by_name,external_subnet_by_cidr) }}"
+
+- name: retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by name
+  local_action:
+    module: ec2_vpc_subnet_facts
+    region: "{{ region }}"
+    filters:
+      "tag:Name": 'datanexus security and metrics'
+  register: metrics_subnet_by_name
+  when:
+    - metrics_subnet is not defined
+    
+- name: retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by CIDR
+  local_action:
+    module: ec2_vpc_subnet_facts
+    region: "{{ region }}"
+    filters:
+      cidr_block: "{{ metrics_subnet }}"
+  register: metrics_subnet_by_cidr
+  when:
+    - metrics_subnet is defined
+
+- name: setting security and metrics internal subnet
+  set_fact:
+    metrics_subnet_result: "{{ (metrics_subnet_by_name.subnets is defined) | ternary(metrics_subnet_by_name,metrics_subnet_by_cidr) }}"
+
+- set_fact: 
+    internal_subnet: "{{ internal_subnet_result.subnets.0.cidr_block }}"
+  when: internal_subnet is not defined
   
 - set_fact:
     internal_subnet_id: "{{ internal_subnet_result.subnets.0.id }}"
   when:
     - internal_subnet_result.skipped is not defined
 
+- set_fact: 
+    external_subnet: "{{ external_subnet_result.subnets.0.cidr_block }}"
+  when: external_subnet is not defined
+  
 - set_fact:
     external_subnet_id: "{{ external_subnet_result.subnets.0.id }}"
   when:
     - external_subnet_result.skipped is not defined
+
+- set_fact: 
+    metrics_subnet: "{{ metrics_subnet_result.subnets.0.cidr_block }}"
+  when: metrics_subnet is not defined
+  
+- set_fact:
+    metrics_subnet_id: "{{ metrics_subnet_result.subnets.0.id }}"
+  when:
+    - metrics_subnet_result.skipped is not defined
