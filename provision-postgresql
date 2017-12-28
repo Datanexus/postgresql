@@ -3,7 +3,7 @@
 #
 # main routine for provisioning postgresql
 ---
-- name: discovering {{ cloud }} networking
+- name: POSTGRESQL | discovering {{ cloud }} networking
   tags:
     - postgresql
     - vm
@@ -20,7 +20,7 @@
         tasks_from: discover-vpc
       when: cloud == 'aws'
 
-- name: creating {{ cloud }} security groups
+- name: POSTGRESQL | creating {{ cloud }} security groups
   tags:
     - postgresql
     - vm
@@ -35,7 +35,7 @@
         tasks_from: create-securitygroup
       when: cloud == 'aws'
 
-- name: launching VM
+- name: POSTGRESQL | launching VM
   tags: vm
   vars_files:
     - vars/postgresql.yml
@@ -55,7 +55,7 @@
         tasks_from: launch-vm
       when: cloud == 'osp'
 
-- name: applying {{ cloud }} security groups
+- name: POSTGRESQL | applying {{ cloud }} security groups
   tags:
     - postgresql
   hosts: localhost
@@ -71,7 +71,7 @@
         tasks_from: apply-securitygroup
       when: cloud == 'aws'
       
-- name: gathering {{ cloud }} inventory
+- name: POSTGRESQL | gathering {{ cloud }} inventory
   tags:
     - postgresql
     - vm
@@ -89,7 +89,7 @@
       when: cloud == 'aws'
     
 # this is a separate step because ansible needs to gather facts on a fully configured base system
-- name: completing OS configuration
+- name: POSTGRESQL | completing OS configuration
   hosts: postgresql
   tags: vm
   vars_files:
@@ -109,7 +109,7 @@
         name: http-proxy
       when: http_proxy is defined
     
-- name: installing base postgresql application
+- name: POSTGRESQL | installing base postgresql application
   tags:
     - vm
     - postgresql
@@ -124,7 +124,7 @@
     - include_role:
         name: postgresql
  
-- name: configuring postgresql master
+- name: POSTGRESQL MASTER | configuring master
   tags: 
     - vm
     - postgresql
@@ -138,8 +138,11 @@
     
     - include_role:
         name: master-streaming
-
-- name: configuring postgresql replica
+      when:
+        - groups['postgresql_replica'] is defined
+        - groups['postgresql_replica'] | length > 0
+        
+- name: POSTGRESQL REPLICA | configuring replica
   tags:
     - vm
     - postgresql
@@ -153,3 +156,6 @@
     
     - include_role:
         name: replica-streaming
+      when:
+        - groups['postgresql_master'] is defined
+        - groups['postgresql_master'] | length > 0
