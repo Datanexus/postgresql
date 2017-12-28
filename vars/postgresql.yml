@@ -21,3 +21,17 @@ postgresql_home_dir: "/var/lib/pgsql"
 postgresql_bin_path: "/usr/pgsql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}/bin"
 postgresql_config_path: "{{ postgresql_data_dir }}"
 postgresql_daemon: "postgresql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}"
+postgresql_unix_socket_directories:
+  - /var/run/postgresql
+replication_users:
+  - name: replicator # required; the rest are optional
+    password: replicator # defaults to not set
+#    priv: # defaults to not set
+    role_attr_flags: Replication # defaults to not set
+#    db: # defaults to not set
+#    login_host: # defaults to 'localhost'
+#    login_password: # defaults to not set
+#    login_user: # defaults to '{{ postgresql_user }}'
+#    login_unix_socket: # defaults to 1st of postgresql_unix_socket_directories
+#    port: # defaults to not set
+#    state: # defaults to 'present
