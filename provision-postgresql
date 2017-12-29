@@ -3,7 +3,7 @@
 #
 # main routine for provisioning postgresql
 ---
-- name: POSTGRESQL | discovering {{ cloud }} networking
+- name: POSTGRESQL OVERLAY | discovering {{ cloud }} networking
   tags:
     - postgresql
     - vm
@@ -20,7 +20,7 @@
         tasks_from: discover-vpc
       when: cloud == 'aws'
 
-- name: POSTGRESQL | creating {{ cloud }} security groups
+- name: POSTGRESQL OVERLAY | creating {{ cloud }} security groups
   tags:
     - postgresql
     - vm
@@ -35,7 +35,7 @@
         tasks_from: create-securitygroup
       when: cloud == 'aws'
 
-- name: POSTGRESQL | launching VM
+- name: POSTGRESQL OVERLAY | launching VM
   tags: vm
   vars_files:
     - vars/postgresql.yml
@@ -55,7 +55,7 @@
         tasks_from: launch-vm
       when: cloud == 'osp'
 
-- name: POSTGRESQL | applying {{ cloud }} security groups
+- name: POSTGRESQL OVERLAY | applying {{ cloud }} security groups
   tags:
     - postgresql
   hosts: localhost
@@ -71,7 +71,7 @@
         tasks_from: apply-securitygroup
       when: cloud == 'aws'
       
-- name: POSTGRESQL | gathering {{ cloud }} inventory
+- name: POSTGRESQL OVERLAY | gathering {{ cloud }} inventory
   tags:
     - postgresql
     - vm
@@ -89,7 +89,7 @@
       when: cloud == 'aws'
     
 # this is a separate step because ansible needs to gather facts on a fully configured base system
-- name: POSTGRESQL | completing OS configuration
+- name: POSTGRESQL OVERLAY | completing OS configuration
   hosts: postgresql
   tags: vm
   vars_files:
@@ -109,7 +109,7 @@
         name: http-proxy
       when: http_proxy is defined
     
-- name: POSTGRESQL | installing base postgresql application
+- name: POSTGRESQL OVERLAY | installing base postgresql application
   tags:
     - vm
     - postgresql
@@ -124,7 +124,7 @@
     - include_role:
         name: postgresql
  
-- name: POSTGRESQL MASTER | configuring master
+- name: POSTGRESQL OVERLAY MASTER | configuring master
   tags: 
     - vm
     - postgresql
@@ -142,7 +142,7 @@
         - groups['postgresql_replica'] is defined
         - groups['postgresql_replica'] | length > 0
         
-- name: POSTGRESQL REPLICA | configuring replica
+- name: POSTGRESQL OVERLAY REPLICA | configuring replica
   tags:
     - vm
     - postgresql

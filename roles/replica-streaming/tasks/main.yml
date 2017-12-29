@@ -3,16 +3,16 @@
 # streaming tasks for the replica
 ---
 - block:
-    - name: preserving postgresql.conf
+    - name: POSTGRESQL OVERLAY | preserving postgresql.conf
       command: /bin/cp {{ postgresql_config_path }}/postgresql.conf /tmp
       become_user: "{{ postgresql_user }}"
        
-    - name: Remove data directory in preparation for streaming
+    - name: POSTGRESQL OVERLAY | removing data directory in preparation for streaming
       file:
         path: "{{ postgresql_data_dir }}"  
         state: absent
 
-    - name: Ensure PostgreSQL data directory exists.
+    - name: POSTGRESQL OVERLAY | ensuring PostgreSQL data directory exists.
       file:
         path: "{{ postgresql_data_dir }}"
         owner: "{{ postgresql_user }}"
@@ -20,7 +20,7 @@
         state: directory
         mode: 0700
     
-    - name: ensure PostgreSQL preferences directory exists
+    - name: POSTGRESQL OVERLAY | ensuring PostgreSQL preferences directory exists
       file:
         path: "{{ postgresql_home_dir }}/.postgresql"
         owner: "{{ postgresql_user }}"
@@ -28,7 +28,7 @@
         state: directory
         mode: 0700      
     
-    - name: build postgresql password file
+    - name: POSTGRESQL OVERLAY | building postgresql password file
       blockinfile:
         name: "{{ postgresql_home_dir }}/.pgpass"
         mode: 0600
@@ -37,16 +37,16 @@
           {{ hostvars[groups.postgresql_master.0].postgresql_interface_ipv4 }}:5432:*:replicator:replicator
       become_user: "{{ postgresql_user }}"
               
-    - name: copy initial database
+    - name: POSTGRESQL OVERLAY | copying initial database
       command: /bin/pg_basebackup -h {{ hostvars[item].postgresql_interface_ipv4  }} -D {{ postgresql_data_dir }} -U replicator -v -P --xlog-method=stream
       become_user: "{{ postgresql_user }}"
       with_items: "{{ groups.postgresql_master }}"
       
-    - name: Restore postgresql.conf
+    - name: POSTGRESQL OVERLAY | restoring postgresql.conf
       command: /bin/cp /tmp/postgresql.conf {{ postgresql_config_path }}
       become_user: "{{ postgresql_user }}"
    
-    - name: build recovery file
+    - name: POSTGRESQL OVERLAY | building recovery file
       blockinfile:
         name: "{{ postgresql_config_path }}/recovery.conf"
         mode: 0600
@@ -58,10 +58,10 @@
       become_user: "{{ postgresql_user }}"
       with_items: "{{ groups.postgresql_master }}"
       
-    - name: fixing SE Linux labels on {{ postgresql_data_dir }}
+    - name: POSTGRESQL OVERLAY | fixing SE Linux labels on {{ postgresql_data_dir }}
       command: /usr/sbin/fixfiles -F restore "{{ postgresql_data_dir }}"
 
-    - name: configure write ahead log for streaming
+    - name: POSTGRESQL OVERLAY | configuring write ahead log for streaming
       lineinfile:
         dest: "{{ postgresql_config_path }}/postgresql.conf"
         regexp: "^#wal_level"
@@ -69,7 +69,7 @@
         line: "wal_level = hot_standby\t\t\t# minimal, archive, or hot_standby"
       notify: restart postgresql
 
-    - name: turn on hot standby
+    - name: POSTGRESQL OVERLAY | turning on hot standby
       lineinfile:
         dest: "{{ postgresql_config_path }}/postgresql.conf"
         regexp: "^#hot_standby ="
@@ -77,7 +77,7 @@
         line: "hot_standby = on\t\t\t# \"on\" allows queries during recovery"
       notify: restart postgresql
 
-    - name: configure write ahead log senders
+    - name: POSTGRESQL OVERLAY | configuring write ahead log senders
       lineinfile:
         dest: "{{ postgresql_config_path }}/postgresql.conf"
         regexp: "^#max_wal_senders"
@@ -85,7 +85,7 @@
         line: "max_wal_senders = 3\t\t# max number of walsender processes"
       notify: restart postgresql
 
-    - name: configure checkpoint segments
+    - name: POSTGRESQL OVERLAY | configuring checkpoint segments
       lineinfile:
         dest: "{{ postgresql_config_path }}/postgresql.conf"
         regexp: "^#checkpoint_segments"
@@ -93,7 +93,7 @@
         line: "checkpoint_segments = 8\t\t\t# logfile segments, min 1, 16MB each"
       notify: restart postgresql
 
-    - name: configure write ahead log keep segments
+    - name: POSTGRESQL OVERLAY | configuring write ahead log keep segments
       lineinfile:
         dest: "{{ postgresql_config_path }}/postgresql.conf"
         regexp: "^#wal_keep_segments"

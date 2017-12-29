@@ -2,7 +2,7 @@
 #
 # discover AWS vpc and set facts
 ---
-- name: retrieving default VPC ID by name
+- name: POSTGRESQL OVERLAY | retrieving default VPC ID by name
   local_action:
     module: ec2_vpc_net_facts
     region: "{{ region }}"
@@ -12,7 +12,7 @@
   when:
     - cidr_block is not defined
     
-- name: retrieving default VPC ID by CIDR
+- name: POSTGRESQL OVERLAY | retrieving default VPC ID by CIDR
   local_action:
     module: ec2_vpc_net_facts
     region: "{{ region }}"
@@ -22,7 +22,7 @@
   when:
     - cidr_block is defined
 
-- name: setting vpc
+- name: POSTGRESQL OVERLAY | setting vpc
   set_fact:
     specified_vpc: "{{ (specified_vpc_by_name.vpcs is defined) | ternary(specified_vpc_by_name,specified_vpc_by_cidr) }}"
 
@@ -36,7 +36,7 @@
   when:
     - internal_subnet is not defined
     
-- name: retrieving {{ internal_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by CIDR
+- name: rPOSTGRESQL OVERLAY | etrieving {{ internal_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by CIDR
   local_action:
     module: ec2_vpc_subnet_facts
     region: "{{ region }}"
@@ -46,11 +46,11 @@
   when:
     - internal_subnet is defined
 
-- name: setting internal private subnet
+- name: POSTGRESQL OVERLAY | setting internal private subnet
   set_fact:
     internal_subnet_result: "{{ (internal_subnet_by_name.subnets is defined) | ternary(internal_subnet_by_name,internal_subnet_by_cidr) }}"
 
-- name: retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by name
+- name: POSTGRESQL OVERLAY | retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by name
   local_action:
     module: ec2_vpc_subnet_facts
     region: "{{ region }}"
@@ -60,7 +60,7 @@
   when:
     - external_subnet is not defined
     
-- name: retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by CIDR
+- name: POSTGRESQL OVERLAY | retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by CIDR
   local_action:
     module: ec2_vpc_subnet_facts
     region: "{{ region }}"
@@ -70,11 +70,11 @@
   when:
     - external_subnet is defined
 
-- name: setting internal public subnet
+- name: POSTGRESQL OVERLAY | setting internal public subnet
   set_fact:
     external_subnet_result: "{{ (external_subnet_by_name.subnets is defined) | ternary(external_subnet_by_name,external_subnet_by_cidr) }}"
 
-- name: retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by name
+- name: POSTGRESQL OVERLAY | retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by name
   local_action:
     module: ec2_vpc_subnet_facts
     region: "{{ region }}"
@@ -84,7 +84,7 @@
   when:
     - metrics_subnet is not defined
     
-- name: retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by CIDR
+- name: POSTGRESQL OVERLAY | retrieving {{ external_subnet }} ID for {{ cidr_block }} in {{ cloud }} {{ region }} by CIDR
   local_action:
     module: ec2_vpc_subnet_facts
     region: "{{ region }}"
@@ -94,7 +94,7 @@
   when:
     - metrics_subnet is defined
 
-- name: setting security and metrics internal subnet
+- name: POSTGRESQL OVERLAY | setting security and metrics internal subnet
   set_fact:
     metrics_subnet_result: "{{ (metrics_subnet_by_name.subnets is defined) | ternary(metrics_subnet_by_name,metrics_subnet_by_cidr) }}"
 
