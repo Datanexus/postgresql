@@ -2,7 +2,7 @@
 #
 # Launch an AWS AMI
 ---
-- name: creating ssh security group
+- name: POSTGRESQL OVERLAY | creating ssh security group
   local_action:
     module: ec2_group
     name: "dnsg_{{ project }}_ssh_private_internal"
@@ -27,7 +27,7 @@
     - sg_ssh_private is defined
       
 - block:    
-  - name: searching for CentOS 7 AMI for specified region
+  - name: POSTGRESQL OVERLAY | searching for CentOS 7 AMI for specified region
     ec2_ami_find:
       name: "CentOS Linux 7 x86_64*"
       region: "{{ region }}"
@@ -43,20 +43,20 @@
   when:
     - image is not defined
 
-- name: setting {{ key_path }}
+- name: POSTGRESQL OVERLAY | setting {{ key_path }}
   set_fact: key_path="{{ ansible_env.PWD }}"
   when: key_path is not defined
   
-- name: checking {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem
+- name: POSTGRESQL OVERLAY | checking {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem
   stat: path="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
   register: existing_key
 
 - block: 
-  - name: generating public key from {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem
+  - name: POSTGRESQL OVERLAY | generating public key from {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem
     command: "/usr/bin/ssh-keygen -f {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem -y"
     register: public_key_from_pem
     
-  - name: using existing {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}
+  - name: POSTGRESQL OVERLAY | using existing {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}
     ec2_key:
       region: "{{ region }}"
       state: present
@@ -69,7 +69,7 @@
     - existing_key.stat.exists
 
 - block:
-  - name: creating {{ region}}-{{ project }}-{{ application }}-{{ domain }}
+  - name: POSTGRESQL OVERLAY | creating {{ region}}-{{ project }}-{{ application }}-{{ domain }}
     ec2_key:
       name: "{{ region }}-{{ project }}-{{ application }}-{{ domain }}"
       region: "{{ region }}"
@@ -77,7 +77,7 @@
     
   - set_fact: keypair="{{ new_keypair }}"
 
-  - name: saving {{ region }}-{{ project }}-{{ application }}-{{ domain }}
+  - name: POSTGRESQL OVERLAY | saving {{ region }}-{{ project }}-{{ application }}-{{ domain }}
     copy:
       dest: "{{ key_path }}/{{ cloud }}-{{ keypair.key.name }}-private-key.pem"
       content: "{{ keypair.key.private_key }}"
@@ -86,18 +86,18 @@
     - not existing_key.stat.exists
 
 # always boot a single postgresql server
-- name: setting count to single node
+- name: POSTGRESQL OVERLAY | setting count to single node
   set_fact:
     count: 1 
  
 # the math is overkill, but it's useful if we want to get more complicated
-- name: configuring instance count based on replica
+- name: POSTGRESQL OVERLAY | configuring instance count based on replica
   set_fact:
     count: "{{ count | int * 2 }}" 
   when:
     - replica
 
-- name: launch AMI
+- name: POSTGRESQL OVERLAY | launcing {{ count }} AMI
   ec2:
     key_name: "{{ keypair.key.name }}"
     group_id: "{{ private_interface_acl }}"
@@ -143,7 +143,7 @@
 
 # obviously this only works when we have a matched pair
 - block:
-  - name: ensuring postgresql master is tagged as such
+  - name: POSTGRESQL OVERLAY | ensuring postgresql master is tagged as such
     ec2_tag:
       region: "{{ region }}"
       resource: "{{ ec2.instances.0.id }}"
@@ -151,7 +151,7 @@
       tags:
         Role: master
 
-  - name: ensuring postgresql replica is tagged as such
+  - name: POSTGRESQL OVERLAY | ensuring postgresql replica is tagged as such
     ec2_tag:
       region: "{{ region }}"
       resource: "{{ ec2.instances.1.id }}"
@@ -162,7 +162,7 @@
     - not ec2|skipped and ec2.changed and ec2.instances|length > 0
     - replica
 
-- name: creating public internal ENI as eth1 
+- name: POSTGRESQL OVERLAY | creating public internal ENI as eth1 
   ec2_eni:
     description: "{{ application }} public internal"
     instance_id: "{{ item.id }}"
@@ -178,7 +178,7 @@
     - not ec2|skipped and ec2.changed and ec2.instances|length > 0
     - external_subnet_id is defined
 
-- name: configuring public internal ENI to delete on termination
+- name: POSTGRESQL OVERLAY | configuring public internal ENI to delete on termination
   ec2_eni:
     region: "{{ region }}"
     eni_id: "{{ item.interface.id }}"
@@ -189,7 +189,7 @@
     - not public_eni | skipped and public_eni.changed and public_eni.results | length > 0
 
 # multi-homed machines require an EIP to get an auto-assigned public IP
-- name: attaching elastic IP to public internal ENI {{ item.interface.id }}
+- name: POSTGRESQL OVERLAY | attaching elastic IP to public internal ENI {{ item.interface.id }}
   local_action:
     module: ec2_eip
     state: present
@@ -202,7 +202,7 @@
   when:
     - not public_eni | skipped and public_eni.changed and public_eni.results|length > 0
 
-- name: configuring ssh for {{ application }} access
+- name: POSTGRESQL OVERLAY | configuring ssh for {{ application }} access
   blockinfile:
     state: present
     create: yes
@@ -220,7 +220,7 @@
     - not ec2 | skipped and ec2.changed and ec2.instances | length > 0
   
 # wait_for doesn't work with a proxy, so we need to ssh and check output
-- name: waiting for {{ item }} with {{ keypair.key.name }}-private-key.pem"
+- name: POSTGRESQL OVERLAY | waiting for {{ item }} with {{ keypair.key.name }}-private-key.pem"
   local_action: shell /bin/sleep 60 && /usr/bin/ssh -i "{{ key_path }}/{{ cloud }}-{{ keypair.key.name }}-private-key.pem" "{{ user }}"@"{{ item.private_ip }}" echo DataNexus
   register: output
   retries: 4

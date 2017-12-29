@@ -2,7 +2,7 @@
 #
 # create AWS postgresql security group rules
 ---
-- name: creating postgresql security group
+- name: POSTGRESQL OVERLAY | creating postgresql security group
   local_action:
     module: ec2_group
     name: "dnsg_{{ project }}_postgresql_public_internal"
