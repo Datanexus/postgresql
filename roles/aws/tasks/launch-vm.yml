@@ -42,7 +42,7 @@
 - set_fact:
     public_interface_acl: "{{ sg_closed.group_id }}"
   when:
-    - sg_ssh_private is defined
+    - sg_closed is defined
 
 - block:    
   - name: POSTGRESQL OVERLAY | searching for CentOS 7 AMI for specified region
