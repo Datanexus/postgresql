@@ -6,7 +6,7 @@
 - import_tasks: facts.yml
 - import_tasks: interface-facts.yml
 
-- name: installing postgresql and epel repos
+- name: POSTGRESQL OVERLAY | installing {{ application }} and epel repos
   become: true
   package:
     name: "{{ item }}"
@@ -15,7 +15,7 @@
     - 'https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-{{ ansible_distribution|lower }}{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm'
     - epel-release-7-9
 
-- name: installing postgresql packages
+- name: POSTGRESQL OVERLAY | installing {{ application }} packages
   become: true
   package:
     name: "{{ item }}"
@@ -47,7 +47,7 @@
         [Service]
         Environment=PGDATA={{ postgresql_data_dir }}
 
-  - name: checking if PostgreSQL database is initialized
+  - name: POSTGRESQL OVERLAY | checking if {{ application }} database is initialized
     stat:
       path: "{{ postgresql_data_dir }}/PG_VERSION"
     register: pgdata_dir_version
@@ -56,7 +56,7 @@
     command: "{{ postgresql_bin_path }}/postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-setup initdb"
     when: not pgdata_dir_version.stat.exists
 
-  - name: listening on {{ postgresql_interface_ipv4 }}
+  - name: POSTGRESQL OVERLAY | listening on {{ postgresql_interface_ipv4 }}
     lineinfile:
       dest: "{{ postgresql_config_path }}/postgresql.conf"
       regexp: "^#?listen_addresses"
@@ -65,7 +65,7 @@
     with_items: "{{ postgresql_interface_ipv4 }}"
     notify: restart postgresql        
  
-  - name: configuring global settings.
+  - name: POSTGRESQL OVERLAY | configuring global settings
     lineinfile:
       dest: "{{ postgresql_config_path }}/postgresql.conf"
       regexp: "^#?{{ item.option }}.+$"
@@ -74,7 +74,7 @@
     with_items: "{{ postgresql_global_config_options }}"
     notify: restart postgresql
   
-  - name: ensuring PostgreSQL unix socket dirs exist
+  - name: POSTGRESQL OVERLAY | ensuring {{ application }} unix socket dirs exist
     file:
       path: "{{ item }}"
       state: directory
@@ -83,7 +83,7 @@
       mode: 02775
     with_items: "{{ postgresql_unix_socket_directories }}"
 
-  - name: updating SE Linux enforcing mode
+  - name: POSTGRESQL OVERLAY | updating SE Linux enforcing mode
     sefcontext:
       target: "{{ postgresql_data_dir }}(/.*)?"
       setype: postgresql_db_t
@@ -92,10 +92,17 @@
     when: ansible_selinux.status == "enabled"
       
   # sefcontent does not restore the context, so we need another step       
-  - name: restoring SE Linux security context
+  - name: POSTGRESQL OVERLAY | restoring SE Linux security context
     command: /sbin/restorecon -R {{ postgresql_data_dir }}
     when: ansible_selinux.status == "enabled"
   
-  - name: ensuring postgresql is started and enabled on boot
+  - name: POSTGRESQL OVERLAY | setting listener to trust the data subnet
+    lineinfile:
+     dest: "{{ postgresql_config_path }}/pg_hba.conf"
+     insertafter: "^host    all             all             127.0.0.1/32            ident"
+     line: "host    all             {{ postgresql_user }}        {{ postgresql_broadcast_interface_ipv4 }}/24          trust"
+    notify: restart postgresql
+       
+  - name: POSTGRESQL OVERLAY | ensuring {{ application }} is started and enabled on boot
     systemd: "name={{ postgresql_daemon }} state=started enabled=True"
   become: true
