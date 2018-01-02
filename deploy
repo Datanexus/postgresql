@@ -7,8 +7,8 @@ export application=postgresql   # application overlay to deploy
 
 if [ $# -eq 0 ] || [ "$1" == "-h" ] ; then
     echo "Usage:   `basename $0` [-h]\thelp"
-    echo "\t `basename $0` [FILE | TENANT PROJECT CLOUD REGION DOMAIN SSH_USER TENANT_PATH]\tdeploy $application overlay with FILE configuration or with the specified values"
-    echo "Example: `basename $0` datanexus demo aws us-east-1 development centos /tmp/datanexus"
+    echo "\t `basename $0` [FILE | TENANT PROJECT CLOUD REGION DOMAIN CLUSTER SSH_USER TENANT_PATH]\tdeploy $application overlay with FILE configuration or with the specified values"
+    echo "Example: `basename $0` datanexus demo aws us-east-1 development a centos /tmp/datanexus"
     echo "\t `basename $0` /tmp/configuration.yml"
     exit 0
 fi
@@ -17,8 +17,8 @@ fi
 if [ $# -eq 4 ] && [ "$1" == "-e" ]; then
   ./provision-postgresql $3 "$4" $1 "$2"
 # deploy postgresql as an overlay or a full deployment via configuration file
-elif [ $# -eq 7 ] && [ -d $7 ]; then
-  ./provision-postgresql --tags "$application" -e "tenant=$1 project=$2 cloud=$3 region=$4 domain=$5 user=$6 tenant_config_path=$7"
+elif [ $# -eq 8 ] && [ -d $8 ]; then
+  ./provision-postgresql --tags "$application" -e "tenant=$1 project=$2 cloud=$3 region=$4 domain=$5 cluster=$6 user=$7 tenant_config_path=$8"
 elif [ $# -eq 1 ] && [ -f $1 ] && [ -s $1 ]; then
   ./provision-postgresql --tags "vm,$application" -e "configuration=$1"
 fi
