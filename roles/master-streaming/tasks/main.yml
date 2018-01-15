@@ -4,7 +4,7 @@
 ---
 - block:
   # this needs to be the internal public network 
-  - name: POSTGRESQL OVERLAY | configure replication user authentication
+  - name: POSTGRESQL MASTER OVERLAY | configure replication user authentication
     lineinfile:
       dest: "{{ postgresql_config_path }}/pg_hba.conf"
       line: "host     replication     replicator      {{ hostvars[item].postgresql_interface_ipv4 }}/32         md5"
@@ -12,7 +12,7 @@
     with_items: "{{ groups.postgresql_replica }}"
     notify: restart postgresql  
      
-  - name: POSTGRESQL OVERLAY | adding replication user
+  - name: POSTGRESQL MASTER OVERLAY | adding replication user
     postgresql_user:
       name: "{{ item.name }}"
       password: "{{ item.password | default(omit) }}"
@@ -29,7 +29,7 @@
     no_log: true
     become_user: "{{ postgresql_user }}"
   
-  - name: POSTGRESQL OVERLAY | configuring write ahead log for streaming
+  - name: POSTGRESQL MASTER OVERLAY | configuring write ahead log for streaming
     lineinfile:
       dest: "{{ postgresql_config_path }}/postgresql.conf"
       regexp: "^#wal_level"
@@ -40,7 +40,7 @@
   # max_wal_senders should be four times the total number of replicas 
   - set_fact: wal_senders={{ groups['postgresql_replica'] | length * 4 }}  
   
-  - name: POSTGRESQL OVERLAY | configuring write ahead log senders
+  - name: POSTGRESQL MASTER OVERLAY | configuring write ahead log senders
     lineinfile:
       dest: "{{ postgresql_config_path }}/postgresql.conf"
       regexp: "^#max_wal_senders"
@@ -48,7 +48,7 @@
       line: "max_wal_senders = {{ wal_senders }} \t\t# max number of walsender processes"
     notify: restart postgresql
 
-  - name: POSTGRESQL OVERLAY | configuring checkpoint segments
+  - name: POSTGRESQL MASTER OVERLAY | configuring checkpoint segments
     lineinfile:
       dest: "{{ postgresql_config_path }}/postgresql.conf"
       regexp: "^#checkpoint_segments"
@@ -56,7 +56,7 @@
       line: "checkpoint_segments = 8\t\t\t# in logfile segments, min 1, 16MB each"
     notify: restart postgresql
     
-  - name: POSTGRESQL OVERLAY | configuring write ahead log keep segments
+  - name: POSTGRESQL MASTER OVERLAY | configuring write ahead log keep segments
     lineinfile:
       dest: "{{ postgresql_config_path }}/postgresql.conf"
       regexp: "^#wal_keep_segments"
