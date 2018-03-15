@@ -6,7 +6,7 @@
   set_fact: key_path="{{ ansible_env.PWD }}"
   when: key_path is not defined
 
-- name: POSTGRESQL OVERLAY | disocvering {{ application }}
+- name: POSTGRESQL OVERLAY | discovering {{ application }}
   ec2_instance_facts:
     region: "{{ region }}"
     filters:
