@@ -21,7 +21,7 @@
     name: "{{ item }}"
     state: present
   with_items:
-    - "python-psycopg2-{{ python_postgres_adapter_version }}.el7"
+    - "python-psycopg2-{{ python_postgres_adapter_version }}.rhel7"
     - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_version }}{{ postgresql_rpm_info }}"
     - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-server-{{ postgresql_version }}{{ postgresql_rpm_info }}"
     - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-contrib-{{ postgresql_version }}{{ postgresql_rpm_info }}"
