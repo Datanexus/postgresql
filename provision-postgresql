@@ -19,7 +19,12 @@
         name: aws
         tasks_from: discover-vpc
       when: cloud == 'aws'
-
+    
+    - include_role:
+        name: azure
+        tasks_from: discover-resourcegroup
+      when: cloud == 'azure'
+      
 - name: POSTGRESQL OVERLAY | creating {{ cloud }} security groups
   tags:
     - postgresql
@@ -34,6 +39,11 @@
         name: aws
         tasks_from: create-securitygroup
       when: cloud == 'aws'
+    
+    - include_role:
+        name: azure
+        tasks_from: create-securitygroup
+      when: cloud == 'azure'
 
 - name: POSTGRESQL OVERLAY | launching VM
   tags: vm
