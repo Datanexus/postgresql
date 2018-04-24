@@ -20,5 +20,5 @@
         access: Allow
         priority: 101
         direction: Inbound
-        source_address_prefix: "{{ internal_public_subnet_result }}"
+        source_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
   register: sg_postgresql

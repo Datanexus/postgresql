@@ -22,8 +22,8 @@
 
 - name: POSTGRESQL OVERLAY | setting internal private subnet
   set_fact:
-    internal_private_subnet_result: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.properties.subnets.0.properties.addressPrefix }}"
+    internal_private_subnet_result: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.properties.subnets.0 }}"
 
 - name: POSTGRESQL OVERLAY | setting internal public subnet
   set_fact:
-    internal_public_subnet_result: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.properties.subnets.1.properties.addressPrefix }}"
+    internal_public_subnet_result: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.properties.subnets.1 }}"
