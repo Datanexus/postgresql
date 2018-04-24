@@ -19,7 +19,7 @@
     name: "{{ project }}_{{ domain }}_vnet"
   register: virtualnetwork_by_name
   when: project is defined and domain is defined
-  
+
 - name: POSTGRESQL OVERLAY | setting internal private subnet
   set_fact:
     internal_private_subnet_result: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.properties.subnets.0.properties.addressPrefix }}"

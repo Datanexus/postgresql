@@ -1,0 +1,297 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# Launch an Azure AMI
+---
+- name: POSTGRESQL OVERLAY | creating ssh security group
+  azure_rm_securitygroup:
+    resource_group: "{{ specified_resourcegroup.name }}"
+    name: "nhsg_{{ project }}_ssh_private_internal"
+    purge_rules: yes
+    rules:
+      - name: DenySSH
+        proto: TCP
+        destination_port_range: 22
+        access: Deny
+        priority: 100
+        direction: Inbound
+      - name: AllowSSH
+        proto: TCP
+        destination_port_range: 22
+        access: Allow
+        priority: 101
+        direction: Inbound
+        source_address_prefix: "{{ internal_private_subnet_result }}"
+  register: sg_ssh_private
+  
+# - set_fact:
+#     private_interface_acl: "{{ sg_ssh_private.group_id }}"
+#   when:
+#     - sg_ssh_private is defined
+#
+# - name: POSTGRESQL OVERLAY | creating closed security group
+#   local_action:
+#     module: ec2_group
+#     name: "dnsg_{{ project }}_closed"
+#     description: "restrict all inbound and unrestricted egress rules (ansible)"
+#     vpc_id: "{{ specified_vpc.vpcs.0.id }}"
+#     region: "{{ region }}"
+#     rules_egress:
+#       # Allow all outbound
+#       - proto: all
+#         cidr_ip: 0.0.0.0/0
+#   register: sg_closed
+#
+# - set_fact:
+#     public_interface_acl: "{{ sg_closed.group_id }}"
+#   when:
+#     - sg_closed is defined
+
+- pause:
+
+- name: POSTGRESQL OVERLAY | creating public IP address
+  azure_rm_publicipaddress:
+    resource_group: "{{ specified_resourcegroup.name }}"
+    allocation_method: Dynamic
+    name: "{{ project }}_{{ application }}"
+    domain_name_label: "{{ tenant }}"
+
+- name: POSTGRESQL OVERLAY | creating virutal NIC
+  azure_rm_networkinterface:
+    resource_group: "{{ specified_resourcegroup.name }}"
+    name: "{{ project }}_{{ application }}_internal"
+    virtual_network: '{{ vnet }}'
+    subnet_name: '{{ subnet }}'
+    public_ip_name: '{{ vmname }}'
+    security_group: sg_ssh_private
+
+# delete when done testing
+- name: Get network interfaces within a resource group
+  azure_rm_networkinterface_facts:
+    resource_group: "{{ specified_resourcegroup.name }}"
+  
+- pause:
+    
+    # - name: Create VM
+    #   azure_rm_virtualmachine:
+    #     resource_group: "{{ specified_resourcegroup.name }}"
+    #     name: "{{ project }}_{{ application }}"
+    #     storage_account: '{{ vmname }}'
+    #     storage_container: '{{ vmname }}'
+    #     storage_blob: '{{ vmname }}.vhd'
+    #     network_interfaces: "{{ project }}_{{ application }}_internal"
+    #     vm_size: Standard_A0
+    #     admin_username: "{{ ansible_user }}"
+    #     ssh_password_enabled: False
+    #     ssh_public_keys:
+    #       - path: "/home/{{ username }}/.ssh/authorized_keys"
+    #         key_data: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDA1DkeLlqqAZYHKUEZZUDEJJ4uzOyDCs9JvcenQeKyWXEw42espwYcpE7sFFTQQfRzGe/rqPIsMO8ZSfi4Ri1/SdP6GlEH0CAee7Xhg4CtFF+grAxLBtFmoManE60g2NW4HxbBe0oo3krczSIZFVQhX1r4H+Ge3niBMQgyzo1GdJC7gle0PgW6FmHji91OswcxtX3EN4tE8ap7IVo7yy7Jv2jylzeVggXS7Hhegw+CyA6bP3impJbbnTW0oWzALzJXhDFLGU4WCCQwhaVIvJu5vJ9KCEGgqlNOVelLRl41VqdQfsKR7pFU1ldHHGswsaxNr27O9rOSguTK86APfHEl christopher@MacPro.local'
+    #     image:
+    #       offer: CentOS
+    #       publisher: OpenLogic
+    #       sku: '7.4'
+    #       version: latest
+
+#
+# - block:
+#   - name: POSTGRESQL OVERLAY | searching for CentOS 7 AMI for specified region
+#     ec2_ami_find:
+#       name: "CentOS Linux 7 x86_64*"
+#       region: "{{ region }}"
+#       owner: 679593333241
+#       virtualization_type: hvm
+#       sort: name
+#       sort_order: descending
+#       sort_end: 1
+#     register: amis_found
+#
+#   - set_fact:
+#       image: "{{ amis_found.results[0].ami_id }}"
+#   when:
+#     - image is not defined
+#
+# - name: POSTGRESQL OVERLAY | setting key path to {{ key_path }}
+#   set_fact: key_path="{{ ansible_env.PWD }}"
+#   when: key_path is not defined
+#
+# - name: POSTGRESQL OVERLAY | checking {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem
+#   stat: path="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+#   register: existing_key
+#
+# - block:
+#   - name: POSTGRESQL OVERLAY | generating public key from {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem
+#     command: "/usr/bin/ssh-keygen -f {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem -y"
+#     register: public_key_from_pem
+#
+#   - name: POSTGRESQL OVERLAY | using existing {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}
+#     ec2_key:
+#       region: "{{ region }}"
+#       state: present
+#       name: "{{ region }}-{{ project }}-{{ application }}-{{ domain }}"
+#       key_material: "{{ public_key_from_pem.stdout }}"
+#     register: old_keypair
+#
+#   - set_fact: keypair="{{ old_keypair }}"
+#   when:
+#     - existing_key.stat.exists
+#
+# - block:
+#   - name: POSTGRESQL OVERLAY | creating {{ region}}-{{ project }}-{{ application }}-{{ domain }}
+#     ec2_key:
+#       name: "{{ region }}-{{ project }}-{{ application }}-{{ domain }}"
+#       region: "{{ region }}"
+#     register: new_keypair
+#
+#   - set_fact: keypair="{{ new_keypair }}"
+#
+#   - name: POSTGRESQL OVERLAY | saving {{ region }}-{{ project }}-{{ application }}-{{ domain }}
+#     copy:
+#       dest: "{{ key_path }}/{{ cloud }}-{{ keypair.key.name }}-private-key.pem"
+#       content: "{{ keypair.key.private_key }}"
+#       mode: 0400
+#   when:
+#     - not existing_key.stat.exists
+#
+# # always boot a single postgresql server
+# - name: POSTGRESQL OVERLAY | setting count to single node
+#   set_fact:
+#     count: 1
+#
+# # the math is overkill, but it's useful if we want to get more complicated
+# - name: POSTGRESQL OVERLAY | configuring instance count based on replica
+#   set_fact:
+#     count: "{{ count | int * 2 }}"
+#   when:
+#     - replica
+#
+# - name: POSTGRESQL OVERLAY | launcing {{ count }} AMI
+#   ec2:
+#     key_name: "{{ keypair.key.name }}"
+#     group_id: "{{ private_interface_acl }}"
+#     instance_type: "{{ type }}"
+#     image: "{{ image }}"
+#     vpc_subnet_id: "{{ internal_subnet_id }}"
+#     region: "{{ region }}"
+#     assign_public_ip: no
+#     wait: true
+#     exact_count: "{{ count }}"
+#     count_tag:
+#       Name: "{{ project }}_postgresql"
+#       Tenant: "{{ tenant }}"
+#       Project: "{{ project }}"
+#       Cloud: "{{ cloud }}"
+#       Domain: "{{ domain }}"
+#       Application: "{{ application }}"
+#       Cluster: "{{ cluster | default ('a') }}"
+#       Role: "{{ role | default ('none') }}"
+#       Dataflow: "{{ dataflow | default ('none') }}"
+#     instance_tags:
+#       Name: "{{ project }}_{{ application }}"
+#       Tenant: "{{ tenant }}"
+#       Project: "{{ project }}"
+#       Cloud: "{{ cloud }}"
+#       Domain: "{{ domain }}"
+#       Application: postgresql
+#       Cluster: "{{ cluster | default ('a') }}"
+#       Role: "{{ role | default ('none') }}"
+#       Dataflow: "{{ dataflow | default ('none') }}"
+#     ebs_optimized: false
+#     volumes:
+#       - device_name: /dev/sda1
+#         volume_type: gp2
+#         volume_size: "{{ root_volume }}"
+#         delete_on_termination: true
+#       - device_name: /dev/xvdb
+#         volume_type: gp2
+#         volume_size: "{{ data_volume }}"
+#         delete_on_termination: true
+#         encrypted: true
+#   register: ec2
+#
+# # obviously this only works when we have a matched pair
+# - block:
+#   - name: POSTGRESQL OVERLAY | ensuring postgresql master is tagged as such
+#     ec2_tag:
+#       region: "{{ region }}"
+#       resource: "{{ ec2.instances.0.id }}"
+#       state: present
+#       tags:
+#         Role: master
+#
+#   - name: POSTGRESQL OVERLAY | ensuring postgresql replica is tagged as such
+#     ec2_tag:
+#       region: "{{ region }}"
+#       resource: "{{ ec2.instances.1.id }}"
+#       state: present
+#       tags:
+#         Role: replica
+#   when:
+#     - not ec2|skipped and ec2.changed and ec2.instances|length > 0
+#     - replica
+#
+# - name: POSTGRESQL OVERLAY | creating public internal ENI as eth1
+#   ec2_eni:
+#     description: "{{ application }} public internal"
+#     instance_id: "{{ item.id }}"
+#     region: "{{ region }}"
+#     subnet_id: "{{ external_subnet_id }}"
+#     device_index: 1
+#     attached: true
+#     security_groups: "{{ public_interface_acl }}"
+#     state: present
+#   register: public_eni
+#   with_items: "{{ ec2.instances }}"
+#   when:
+#     - not ec2 | skipped and ec2.changed and ec2.instances | length > 0
+#     - external_subnet_id is defined
+#
+# - name: POSTGRESQL OVERLAY | configuring public internal ENI to delete on termination
+#   ec2_eni:
+#     region: "{{ region }}"
+#     eni_id: "{{ item.interface.id }}"
+#     subnet_id: "{{ external_subnet_id }}"
+#     delete_on_termination: true
+#   with_items: "{{ public_eni.results }}"
+#   when:
+#     - not public_eni | skipped and public_eni.changed and public_eni.results | length > 0
+#
+# # multi-homed machines require an EIP to get an auto-assigned public IP
+# - name: POSTGRESQL OVERLAY | attaching elastic IP to public internal ENI {{ item.interface.id }}
+#   local_action:
+#     module: ec2_eip
+#     state: present
+#     in_vpc: yes
+#     release_on_disassociation: yes
+#     reuse_existing_ip_allowed: yes
+#     region: "{{ region }}"
+#     device_id: "{{ item.interface.id }}"
+#   with_items: "{{ public_eni.results }}"
+#   when:
+#     - not public_eni | skipped and public_eni.changed and public_eni.results|length > 0
+#
+# - name: POSTGRESQL OVERLAY | configuring ssh for {{ application }} access
+#   blockinfile:
+#     state: present
+#     create: yes
+#     insertafter: EOF
+#     path: "{{ ansible_env.HOME }}/.ssh/config"
+#     marker: "# {{ application }} {mark} ANSIBLE MANAGED BLOCK"
+#     block: |
+#       Host dn_postgresql
+#           Hostname {{ ec2.instances.0.private_ip }}
+#           User centos
+#           IdentityFile {{ ansible_env.PWD }}/{{ keypair.key.name }}-private-key.pem
+#           StrictHostKeyChecking no
+#           ProxyCommand ssh dn_jumphost -W %h:%p
+#   when:
+#     - not ec2 | skipped and ec2.changed and ec2.instances | length > 0
+#
+# # wait_for doesn't work with a proxy, so we need to ssh and check output
+# - name: POSTGRESQL OVERLAY | waiting for {{ item }} with {{ keypair.key.name }}-private-key.pem"
+#   local_action: shell /bin/sleep 60 && /usr/bin/ssh -i "{{ key_path }}/{{ cloud }}-{{ keypair.key.name }}-private-key.pem" "{{ user }}"@"{{ item.private_ip }}" echo DataNexus
+#   register: output
+#   retries: 4
+#   delay: 15
+#   until: output.stdout.find('DataNexus') != -1
+#   with_items: "{{ ec2.instances }}"
+#   when:
+#     - not ec2|skipped and ec2.changed and ec2.instances|length > 0

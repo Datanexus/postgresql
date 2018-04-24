@@ -22,5 +22,3 @@
         direction: Inbound
         source_address_prefix: "{{ internal_public_subnet_result }}"
   register: sg_postgresql
-
-- pause:

@@ -64,6 +64,10 @@
         name: osp
         tasks_from: launch-vm
       when: cloud == 'osp'
+    - include_role:
+        name: azure
+        tasks_from: launch-vm
+      when: cloud == 'azure'
 
 - name: POSTGRESQL OVERLAY | applying {{ cloud }} security groups
   tags:
