@@ -1,0 +1,39 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# discover Azure inventory
+---
+- name: POSTGRESQL OVERLAY | setting key_path
+  set_fact: key_path="{{ ansible_env.PWD }}"
+  when: key_path is not defined
+
+- name: POSTGRESQL OVERLAY | discovering {{ application }} master
+  azure_rm_publicipaddress_facts:
+    resource_group: "{{ specified_resourcegroup.name }}"
+    name: "{{ project }}_{{ application }}_master_internal_ip"
+  register: master_postgresql
+  
+- name: POSTGRESQL OVERLAY | adding all postgres masters to {{ application }} host group
+  add_host: hostname="{{ item.properties.ipAddress }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  with_items: "{{ master_postgresql.ansible_facts.azure_publicipaddresses }}"
+  # when:
+#     - cloud == 'azure'
+#     - master_postgresql is defined
+#     - postgresql_instances.instances|length > 0
+    
+- name: POSTGRESQL OVERLAY | adding all postgres masters to {{ application }} master host group
+  add_host: hostname="{{ item.properties.ipAddress }}" groupname=postgresql_master ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  with_items: "{{ master_postgresql.ansible_facts.azure_publicipaddresses }}"
+
+- name: POSTGRESQL OVERLAY | discovering {{ application }} replica1
+  azure_rm_publicipaddress_facts:
+    resource_group: "{{ specified_resourcegroup.name }}"
+    name: "{{ project }}_{{ application }}_replica1_internal_ip"
+  register: replica1_postgresql
+
+- name: POSTGRESQL OVERLAY | building postgresql host group
+  add_host: hostname="{{ item.properties.ipAddress }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  with_items: "{{ replica1_postgresql.ansible_facts.azure_publicipaddresses }}"
+
+- name: POSTGRESQL OVERLAY | building postgresql replica host group
+  add_host: hostname="{{ item.properties.ipAddress }}" groupname=postgresql_replica ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  with_items: "{{ replica1_postgresql.ansible_facts.azure_publicipaddresses }}"

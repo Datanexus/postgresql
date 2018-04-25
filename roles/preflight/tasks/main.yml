@@ -4,16 +4,17 @@
 ---
 
 # in a dual interface system, eth1 is always public internal
-- name: POSTGRESQL OVERLAY | setting internal private and public interfaces
+# azure is pre-configured so we only need to do this for AWS & OSP
+- name: POSTGRESQL PREFLIGHT OVERLAY | setting internal private and public interfaces
   set_fact:
     public_internal_interface: "{{ (internal_subnet is defined) | ternary('eth1','eth0') }}"
 
 - block:
-  - name: POSTGRESQL OVERLAY | configuring no default route on eth0 for {{ application }}
+  - name: POSTGRESQL PREFLIGHT OVERLAY | configuring no default route on eth0 for {{ application }}
     become: true
     lineinfile: name="/etc/sysconfig/network-scripts/ifcfg-eth0" regexp='^DEFROUTE=' line='DEFROUTE=no'
     
-  - name: POSTGRESQL OVERLAY | creating ifcfg-{{ public_internal_interface }}
+  - name: POSTGRESQL PREFLIGHT OVERLAY | creating ifcfg-{{ public_internal_interface }}
     become: true
     blockinfile:
       path: "/etc/sysconfig/network-scripts/ifcfg-{{ public_internal_interface }}"
@@ -25,37 +26,58 @@
         ONBOOT=yes
         TYPE=Ethernet
         USERCTL=no
-  - name: POSTGRESQL OVERLAY | restart networking
+        
+  - name: POSTGRESQL PREFLIGHT OVERLAY | restart networking
     become: true
-    systemd: "name=network state=restarted" 
-  
+    systemd: "name=network state=restarted"
+    
   when:
     - ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
+    - cloud == 'aws' or cloud == 'osp'
     - public_internal_interface == 'eth1'
-
-# if AWS, set /dev/xvdb, else assume OSP and /dev/vdb
-# this would need to be separated out into multiple set_fact when clauses for additional clouds
-- set_fact:
-    block_device: "{{ (cloud == 'aws') | ternary('/dev/xvdb', '/dev/vdb') }}"
-
+  
 - block:
+  # if AWS, set /dev/xvdb, else assume OSP and /dev/vdb
+  # this would need to be separated out into multiple set_fact when clauses for additional clouds
+  - set_fact:
+      block_device: "{{ (cloud == 'aws') | ternary('/dev/xvdb', '/dev/vdb') }}"
+  
   # the ansible filesystem module was succeeding without errors, but the resulting filesystem was unmountable
-  - name: POSTGRESQL OVERLAY | making filesystem on {{ block_device }}
+  - name: POSTGRESQL PREFLIGHT OVERLAY | making filesystem on {{ block_device }}
     command: /usr/sbin/mkfs -t ext4 {{ block_device }}
-
-  - name: POSTGRESQL OVERLAY | mount data volumes
+    when: block_device is defined
+    
+  - name: POSTGRESQL PREFLIGHT OVERLAY | mount data volumes
     mount:
       name: "{{ mountpoint }}"
       src: "{{ block_device }}"
       fstype: ext4
       state: mounted
+  when:
+    - cloud == 'aws' or cloud == 'osp'
+    - block_device is defined and mountpoint is defined
   become: true
   
-- name: POSTGRESQL OVERLAY | ensure sshd_config is writable
+- block:
+  - name: POSTGRESQL PREFLIGHT OVERLAY | unmounting default Azure data volume on /mnt/resource
+    mount:
+      path: /mnt/resource
+      state: unmounted
+
+  - name: POSTGRESQL PREFLIGHT OVERLAY | remounting default Azure data volume to /data
+    mount:
+      path: "{{ mountpoint }}"
+      src: /dev/sdb1
+      fstype: ext4
+      state: mounted
+  when: cloud == 'azure' and mountpoint is defined
+  become: true
+  
+- name: POSTGRESQL PREFLIGHT OVERLAY | ensure sshd_config is writable
   command: /bin/chattr -i /etc/ssh/sshd_config
   become: true
   
-- name: POSTGRESQL OVERLAY | ensuring sshd listens on provisioning network
+- name: POSTGRESQL PREFLIGHT OVERLAY | ensuring sshd listens on provisioning network
   lineinfile:
     dest: /etc/ssh/sshd_config
     regexp: "^#ListenAddress 0.0.0.0"
@@ -63,39 +85,40 @@
     line: "ListenAddress {{ hostvars[inventory_hostname].ansible_default_ipv4.address }}"
   become: true
 
-- name: POSTGRESQL OVERLAY | restarting sshd
+- name: POSTGRESQL PREFLIGHT OVERLAY | restarting sshd
   service:
      name: sshd
      state: restarted
   become: true
 
-- name: POSTGRESQL OVERLAY | generating UUID
+- name: POSTGRESQL PREFLIGHT OVERLAY | generating UUID
   shell: /usr/bin/uuidgen | /usr/bin/tr -d \-
   register: uuid
   become: true
 
 # the lineinfile plays aren't intended to be idempotent
 - block:
-  - name: POSTGRESQL OVERLAY | setting hostname actively so rebooting is unnecessary
+  - name: POSTGRESQL PREFLIGHT OVERLAY | setting hostname actively so rebooting is unnecessary
     command: /usr/bin/hostnamectl set-hostname {{ application }}-{{ uuid.stdout }}
 
-  - name: POSTGRESQL OVERLAY | setting pretty hostname actively so rebooting is unnecessary
+  - name: POSTGRESQL PREFLIGHT OVERLAY | setting pretty hostname actively so rebooting is unnecessary
     command: /usr/bin/hostnamectl --pretty set-hostname "{{ tenant }} {{ application }}"  
 
-  - name: POSTGRESQL OVERLAY | setting hostname in /etc/hostname
+  - name: POSTGRESQL PREFLIGHT OVERLAY | setting hostname in /etc/hostname
     replace:
       path: /etc/hostname
       regexp: "{{ hostvars[inventory_hostname].ansible_hostname }}.ec2.internal"
       replace: "{{ application }}-{{ uuid.stdout }}.localdomain"
-
-  - name: POSTGRESQL OVERLAY | setting {{ application }}-{{ uuid.stdout }}.localdomain in /etc/sysconfig/network
+    when: cloud == 'aws'
+    
+  - name: POSTGRESQL PREFLIGHT OVERLAY | setting {{ application }}-{{ uuid.stdout }}.localdomain in /etc/sysconfig/network
     lineinfile:
       dest: /etc/sysconfig/network
       state: present
       insertafter: EOF
       line: "HOSTNAME={{ application }}-{{ uuid.stdout }}.localdomain"
 
-  - name: POSTGRESQL OVERLAY | setting {{ hostvars[inventory_hostname].ansible_eth0.ipv4.address }} to {{ application }}-{{ uuid.stdout }}.localdomain in /etc/hosts
+  - name: POSTGRESQL PREFLIGHT OVERLAY | setting {{ hostvars[inventory_hostname].ansible_eth0.ipv4.address }} to {{ application }}-{{ uuid.stdout }}.localdomain in /etc/hosts
     lineinfile:
       dest: /etc/hosts
       insertafter: EOF
@@ -104,20 +127,18 @@
       # line: "127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4 {{ hostvars[inventory_hostname].ansible_hostname }}"
       line: "{{ hostvars[inventory_hostname].ansible_eth0.ipv4.address }}    {{ application }}-{{ uuid.stdout }}.localdomain {{ application }}-{{ uuid.stdout }} {{ application }}"
 
-  - name: POSTGRESQL OVERLAY | ensuring hostname changes persist after reboot
+  - name: POSTGRESQL PREFLIGHT OVERLAY | ensuring hostname changes persist after reboot
     lineinfile:
       dest: /etc/cloud/cloud.cfg
       state: present
       insertafter: EOF
       line: 'preserve_hostname: true'
-    when:
-      - cloud == 'aws'
+    when: cloud == 'aws'
   become: true
-  when:
-    - ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
 
 # community CentOS AMI ships with postfix enabled so we need to disable it
-- name: POSTGRESQL OVERLAY | stopping postfix
+- name: POSTGRESQL PREFLIGHT OVERLAY | stopping postfix
   service:
     name: postfix
     state: stopped
@@ -125,7 +146,7 @@
   when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'  
   
 # annnnd remove it
-- name: POSTGRESQL OVERLAY | removing postfix
+- name: POSTGRESQL PREFLIGHT OVERLAY | removing postfix
   package:
     name: postfix
     state: absent

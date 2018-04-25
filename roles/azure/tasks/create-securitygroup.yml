@@ -1,0 +1,24 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# create Azure postgresql security group rules
+---
+- name: POSTGRESQL OVERLAY | creating postgresql security group
+  azure_rm_securitygroup:
+    resource_group: "{{ specified_resourcegroup.name }}"
+    name: "nhsg_{{ project }}_postgresql_public_internal"
+    purge_rules: yes
+    rules:
+      - name: DenyPG 
+        proto: TCP
+        destination_port_range: 5432
+        access: Deny
+        priority: 100
+        direction: Inbound
+      - name: AllowPG 
+        proto: TCP
+        destination_port_range: 5432
+        access: Allow
+        priority: 101
+        direction: Inbound
+        source_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
+  register: sg_postgresql

@@ -19,6 +19,11 @@
         name: aws
         tasks_from: discover-vpc
       when: cloud == 'aws'
+    
+    - include_role:
+        name: azure
+        tasks_from: discover-resourcegroup
+      when: cloud == 'azure'
 
 - name: POSTGRESQL OVERLAY | creating {{ cloud }} security groups
   tags:
@@ -34,6 +39,11 @@
         name: aws
         tasks_from: create-securitygroup
       when: cloud == 'aws'
+    
+    - include_role:
+        name: azure
+        tasks_from: create-securitygroup
+      when: cloud == 'azure'
 
 - name: POSTGRESQL OVERLAY | launching VM
   tags: vm
@@ -54,6 +64,10 @@
         name: osp
         tasks_from: launch-vm
       when: cloud == 'osp'
+    - include_role:
+        name: azure
+        tasks_from: launch-vm
+      when: cloud == 'azure'
 
 - name: POSTGRESQL OVERLAY | applying {{ cloud }} security groups
   tags:
@@ -70,6 +84,8 @@
         name: aws
         tasks_from: apply-securitygroup
       when: cloud == 'aws'
+    
+    # azure security groups are applied on instance boot
       
 - name: POSTGRESQL OVERLAY | gathering {{ cloud }} inventory
   tags:
@@ -87,6 +103,11 @@
         name: aws
         tasks_from: discover-vm
       when: cloud == 'aws'
+      
+    - include_role:
+        name: azure
+        tasks_from: discover-vm
+      when: cloud == 'azure'
     
 # this is a separate step because ansible needs to gather facts on a fully configured base system
 - name: POSTGRESQL OVERLAY | completing OS configuration
@@ -103,7 +124,6 @@
         name: preflight
       vars:
         mountpoint: "/data"
-      when: data_volume is defined
     
     - include_role:
         name: http-proxy
