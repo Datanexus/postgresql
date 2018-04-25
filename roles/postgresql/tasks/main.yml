@@ -82,7 +82,16 @@
       group: "{{ postgresql_group }}"
       mode: 02775
     with_items: "{{ postgresql_unix_socket_directories }}"
-
+  
+  - name: POSTGRESQL OVERLAY | ensuring SE Linux pre-requisite packages are installed
+    become: true
+    package:
+      name: "{{ item }}"
+      state: present
+    when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
+    with_items:
+      - policycoreutils-python
+      
   - name: POSTGRESQL OVERLAY | updating SE Linux enforcing mode
     sefcontext:
       target: "{{ postgresql_data_dir }}(/.*)?"
