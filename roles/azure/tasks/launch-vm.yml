@@ -6,7 +6,7 @@
 - name: POSTGRESQL OVERLAY | creating ssh security group
   azure_rm_securitygroup:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "nhsg_{{ project }}_ssh_private_internal"
+    name: "dnsg_{{ project }}_ssh_private_internal"
     purge_rules: yes
     rules:
       - name: DenySSH
@@ -27,7 +27,7 @@
 - name: POSTGRESQL OVERLAY | creating closed security group
   azure_rm_securitygroup:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "nhsg_{{ project }}_closed"
+    name: "dnsg_{{ project }}_closed"
     purge_rules: yes
     rules:
       - name: DenyAll
@@ -37,65 +37,6 @@
         priority: 100
         direction: Inbound
   register: sg_closed
-
-- name: POSTGRESQL OVERLAY | removing {{ application }} VM in {{ specified_resourcegroup.name }}
-  azure_rm_virtualmachine:
-    resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ item }}"
-    state: absent
-    remove_on_absent:
-        - network_interfaces
-        - virtual_storage
-  with_items:
-    - "{{ project }}-{{ application }}"
-    - "{{ project }}-{{ application }}-master"
-    - "{{ project }}-{{ application }}-replica1"
-
-# delete me when done
-- name: cleanup if we haven't booted a machine
-  azure_rm_networkinterface:
-    resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ item }}"
-    state: absent
-  with_items:
-    - "{{ project }}_{{ application }}_internal"
-    - "{{ project }}_{{ application }}_external"
-    - "{{ project }}_{{ application }}_master_internal"
-    - "{{ project }}_{{ application }}_master_external"
-    - "{{ project }}_{{ application }}_replica1_internal"
-    - "{{ project }}_{{ application }}_replica1_external"
-  
-- name: Delete public ip
-  azure_rm_publicipaddress:
-    resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ item }}"
-    state: absent
-  with_items:
-    - ngen_postgresql_internal_ip
-    - ngen_postgresql_external_ip
-    - ngen_postgresql_master_internal_ip
-    - ngen_postgresql_master_external_ip
-    - ngen_postgresql_replica1_internal_ip
-    - ngen_postgresql_replica1_external_ip
-    - ngen_postgresql_replica2_internal_ip
-    - ngen_postgresql_replica2_external_ip
-# delete me
-
-# i don't think this is really needed
-# - name: POSTGRESQL OVERLAY | creating {{ project }}_{{ application }}_external IP address
-#   azure_rm_publicipaddress:
-#     resource_group: "{{ specified_resourcegroup.name }}"
-#     allocation_method: Dynamic
-#     name: "{{ project }}_{{ application }}_external"
-#     domain_name_label: "{{ tenant }}"
-
-# delete when done testing
-# - name: Get network interfaces within a resource group
-#   azure_rm_networkinterface_facts:
-#     resource_group: "{{ specified_resourcegroup.name }}"
-#   register: all_nics
-#
-# - debug: msg="{{ all_nics }}"
 
 - name: POSTGRESQL OVERLAY | setting key path to {{ key_path }}
   set_fact: key_path="{{ ansible_env.PWD }}"
@@ -113,8 +54,8 @@
 
   - name: setting read-only permissions on key {{ cloud }}-{{ region }}-{{ project }}-{{ application }}
     file:
-        path: "{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub"
-        mode: 0400
+      path: "{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub"
+      mode: 0400
     when:
       - new_azure_keypair.changed
   when:
@@ -127,7 +68,7 @@
       name: "{{ project }}_{{ application }}_internal"    
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: "{{ internal_private_subnet_result.name }}"
-      security_group: "nhsg_{{ project }}_ssh_private_internal"
+      security_group: "dnsg_{{ project }}_ssh_private_internal"
       ip_configurations:
         - name: ipconfig1
           public_ip_address_name: "{{ project }}_{{ application }}_internal_ip"
@@ -142,7 +83,7 @@
       name: "{{ project }}_{{ application }}_external"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: '{{ internal_public_subnet_result.name }}'
-      security_group: "nhsg_{{ project }}_postgresql_public_internal"
+      security_group: "dnsg_{{ project }}_{{ application }}_public_internal"
       ip_configurations:
         - name: ipconfig1
           public_ip_address_name: "{{ project }}_{{ application }}_external_ip"
@@ -153,7 +94,7 @@
   
   # this is not necessarily idempotent because we're shelling out
   - name: POSTGRESQL OVERLAY | creating {{ application }} VM in {{ specified_resourcegroup.name }}
-    command: "az vm create --resource-group {{ specified_resourcegroup.name }} --name {{ project }}-{{ application }} --location {{ region }} --nics {{ project }}_{{ application }}_internal {{ project }}_{{ application }}_external --size {{ image | default('Standard_D8_v3') }} --image Centos --admin-username {{ user }} --authentication-type ssh --ssh-key-value {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub --tags Name={{ project }}_{{ application }} Tenant={{ tenant }} Project={{ project }} Cloud={{ cloud }} Domain={{ domain }} Application={{ application }} Cluster={{ cluster | default ('a') }} Role={{ role | default ('none') }} Dataflow={{ dataflow | default ('none') }}"
+    command: "az vm create --resource-group {{ specified_resourcegroup.name }} --name {{ project }}-{{ application }} --location {{ region }} --nics {{ project }}_{{ application }}_internal {{ project }}_{{ application }}_external --size {{ image | default('Standard_D8_v3') }} --os-disk-size-gb {{ root_volume }} --data-disk-sizes-gb {{ data_volume }} --image Centos --admin-username {{ user }} --authentication-type ssh --ssh-key-value {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub --tags Name={{ project }}_{{ application }} Tenant={{ tenant }} Project={{ project }} Cloud={{ cloud }} Domain={{ domain }} Application={{ application }} Cluster={{ cluster | default ('a') }} Role={{ role | default ('none') }} Dataflow={{ dataflow | default ('none') }}"
     
   - name: Get facts for all Public IPs within a resource groups
     azure_rm_publicipaddress_facts:
@@ -173,7 +114,7 @@
       name: "{{ project }}_{{ application }}_master_internal"    
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: "{{ internal_private_subnet_result.name }}"
-      security_group: "nhsg_{{ project }}_ssh_private_internal"
+      security_group: "dnsg_{{ project }}_ssh_private_internal"
       ip_configurations:
         - name: ipconfig1
           public_ip_address_name: "{{ project }}_{{ application }}_master_internal_ip"
@@ -188,7 +129,7 @@
       name: "{{ project }}_{{ application }}_master_external"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: '{{ internal_public_subnet_result.name }}'
-      security_group: "nhsg_{{ project }}_postgresql_public_internal"
+      security_group: "dnsg_{{ project }}_{{ application }}_public_internal"
       ip_configurations:
         - name: ipconfig1
           public_ip_address_name: "{{ project }}_{{ application }}_master_external_ip"
@@ -203,7 +144,7 @@
       name: "{{ project }}_{{ application }}_replica1_internal"    
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: "{{ internal_private_subnet_result.name }}"
-      security_group: "nhsg_{{ project }}_ssh_private_internal"
+      security_group: "dnsg_{{ project }}_ssh_private_internal"
       ip_configurations:
         - name: ipconfig1
           public_ip_address_name: "{{ project }}_{{ application }}_replica1_internal_ip"
@@ -218,7 +159,7 @@
       name: "{{ project }}_{{ application }}_replica1_external"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: '{{ internal_public_subnet_result.name }}'
-      security_group: "nhsg_{{ project }}_postgresql_public_internal"
+      security_group: "dnsg_{{ project }}_{{ application }}_public_internal"
       ip_configurations:
         - name: ipconfig1
           public_ip_address_name: "{{ project }}_{{ application }}_replica1_external_ip"
@@ -229,11 +170,11 @@
 
   # this is not necessarily idempotent because we're shelling out
   - name: POSTGRESQL OVERLAY | creating {{ application }} master VM in {{ specified_resourcegroup.name }}
-    command: "az vm create --resource-group {{ specified_resourcegroup.name }} --name {{ project }}-{{ application }}-master --location {{ region }} --nics {{ project }}_{{ application }}_master_internal {{ project }}_{{ application }}_master_external --size {{ master_image }} --image Centos --admin-username {{ user }} --authentication-type ssh --ssh-key-value {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub --tags Name={{ project }}_{{ application }} Tenant={{ tenant }} Project={{ project }} Cloud={{ cloud }} Domain={{ domain }} Application={{ application }} Cluster={{ cluster | default ('a') }} Role=master Dataflow={{ dataflow | default ('none') }}"
+    command: "az vm create --resource-group {{ specified_resourcegroup.name }} --name {{ project }}-{{ application }}-master --location {{ region }} --nics {{ project }}_{{ application }}_master_internal {{ project }}_{{ application }}_master_external --size {{ master_image }} --os-disk-size-gb {{ root_volume }} --data-disk-sizes-gb {{ data_volume }} --image Centos --admin-username {{ user }} --authentication-type ssh --ssh-key-value {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub --tags Name={{ project }}_{{ application }} Tenant={{ tenant }} Project={{ project }} Cloud={{ cloud }} Domain={{ domain }} Application={{ application }} Cluster={{ cluster | default ('a') }} Role=master Dataflow={{ dataflow | default ('none') }}"
 
   # this is not necessarily idempotent because we're shelling out
   - name: POSTGRESQL OVERLAY | creating {{ application }} replica1 VM in {{ specified_resourcegroup.name }}
-    command: "az vm create --resource-group {{ specified_resourcegroup.name }} --name {{ project }}-{{ application }}-replica1 --location {{ region }} --nics {{ project }}_{{ application }}_replica1_internal {{ project }}_{{ application }}_replica1_external --size {{ replica_image }} --image Centos --admin-username {{ user }} --authentication-type ssh --ssh-key-value {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub --tags Name={{ project }}_{{ application }} Tenant={{ tenant }} Project={{ project }} Cloud={{ cloud }} Domain={{ domain }} Application={{ application }} Cluster={{ cluster | default ('a') }} Role=replica Dataflow={{ dataflow | default ('none') }}"
+    command: "az vm create --resource-group {{ specified_resourcegroup.name }} --name {{ project }}-{{ application }}-replica1 --location {{ region }} --nics {{ project }}_{{ application }}_replica1_internal {{ project }}_{{ application }}_replica1_external --size {{ replica_image }} --os-disk-size-gb {{ root_volume }} --data-disk-sizes-gb {{ data_volume }} --image Centos --admin-username {{ user }} --authentication-type ssh --ssh-key-value {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub --tags Name={{ project }}_{{ application }} Tenant={{ tenant }} Project={{ project }} Cloud={{ cloud }} Domain={{ domain }} Application={{ application }} Cluster={{ cluster | default ('a') }} Role=replica Dataflow={{ dataflow | default ('none') }}"
     
   # - name: Get facts for all Public IPs within a resource groups
   #   azure_rm_publicipaddress_facts:
@@ -280,83 +221,13 @@
 #     ssh_password_enabled: False
 #     ssh_public_keys:
 #       - path: "/home/{{ user }}/.ssh/authorized_keys"
-#         key_data: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDA1DkeLlqqAZYHKUEZZUDEJJ4uzOyDCs9JvcenQeKyWXEw42espwYcpE7sFFTQQfRzGe/rqPIsMO8ZSfi4Ri1/SdP6GlEH0CAee7Xhg4CtFF+grAxLBtFmoManE60g2NW4HxbBe0oo3krczSIZFVQhX1r4H+Ge3niBMQgyzo1GdJC7gle0PgW6FmHji91OswcxtX3EN4tE8ap7IVo7yy7Jv2jylzeVggXS7Hhegw+CyA6bP3impJbbnTW0oWzALzJXhDFLGU4WCCQwhaVIvJu5vJ9KCEGgqlNOVelLRl41VqdQfsKR7pFU1ldHHGswsaxNr27O9rOSguTK86APfHEl christopher@MacPro.local'
+#         key_data: "{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub"
 #     image:
 #       offer: CentOS
 #       publisher: OpenLogic
 #       sku: '7.4'
 #       version: latest
 
-
-        
-# - name: cleanup
-#   azure_rm_networkinterface:
-#     resource_group: "{{ specified_resourcegroup.name }}"
-#     name: "{{ item }}"
-#     state: absent
-#   with_items:
-#     - "{{ project }}_{{ application }}_internal"
-#     - "{{ project }}_{{ application }}_external"
- 
-
-#
-# - block:
-#   - name: POSTGRESQL OVERLAY | searching for CentOS 7 AMI for specified region
-#     ec2_ami_find:
-#       name: "CentOS Linux 7 x86_64*"
-#       region: "{{ region }}"
-#       owner: 679593333241
-#       virtualization_type: hvm
-#       sort: name
-#       sort_order: descending
-#       sort_end: 1
-#     register: amis_found
-#
-#   - set_fact:
-#       image: "{{ amis_found.results[0].ami_id }}"
-#   when:
-#     - image is not defined
-#
-
-#
-# - name: POSTGRESQL OVERLAY | checking {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem
-#   stat: path="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
-#   register: existing_key
-#
-# - block:
-#   - name: POSTGRESQL OVERLAY | generating public key from {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem
-#     command: "/usr/bin/ssh-keygen -f {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem -y"
-#     register: public_key_from_pem
-#
-#   - name: POSTGRESQL OVERLAY | using existing {{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}
-#     ec2_key:
-#       region: "{{ region }}"
-#       state: present
-#       name: "{{ region }}-{{ project }}-{{ application }}-{{ domain }}"
-#       key_material: "{{ public_key_from_pem.stdout }}"
-#     register: old_keypair
-#
-#   - set_fact: keypair="{{ old_keypair }}"
-#   when:
-#     - existing_key.stat.exists
-#
-# - block:
-#   - name: POSTGRESQL OVERLAY | creating {{ region}}-{{ project }}-{{ application }}-{{ domain }}
-#     ec2_key:
-#       name: "{{ region }}-{{ project }}-{{ application }}-{{ domain }}"
-#       region: "{{ region }}"
-#     register: new_keypair
-#
-#   - set_fact: keypair="{{ new_keypair }}"
-#
-#   - name: POSTGRESQL OVERLAY | saving {{ region }}-{{ project }}-{{ application }}-{{ domain }}
-#     copy:
-#       dest: "{{ key_path }}/{{ cloud }}-{{ keypair.key.name }}-private-key.pem"
-#       content: "{{ keypair.key.private_key }}"
-#       mode: 0400
-#   when:
-#     - not existing_key.stat.exists
-#
 
 #
 # - name: POSTGRESQL OVERLAY | configuring ssh for {{ application }} access
