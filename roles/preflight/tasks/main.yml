@@ -59,6 +59,13 @@
   become: true
   
 - block:
+  - name: POSTGRESQL PREFLIGHT OVERLAY | discovering block device
+    command: /usr/bin/ls /proc/fs/ext4
+    register: found_block_device
+    
+  - set_fact:
+      block_device: "/dev/{{ found_block_device.stdout }}"
+      
   - name: POSTGRESQL PREFLIGHT OVERLAY | unmounting default Azure data volume on /mnt/resource
     mount:
       path: /mnt/resource
@@ -67,7 +74,7 @@
   - name: POSTGRESQL PREFLIGHT OVERLAY | remounting default Azure data volume to /data
     mount:
       path: "{{ mountpoint }}"
-      src: /dev/sdb1
+      src: "{{ block_device }}"
       fstype: ext4
       state: mounted
   when: cloud == 'azure' and mountpoint is defined

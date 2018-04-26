@@ -5,7 +5,7 @@
 - name: POSTGRESQL OVERLAY | creating postgresql security group
   azure_rm_securitygroup:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "nhsg_{{ project }}_postgresql_public_internal"
+    name: "dnsg_{{ project }}_{{ application }}_public_internal"
     purge_rules: yes
     rules:
       - name: DenyPG 

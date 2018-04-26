@@ -145,4 +145,13 @@
           - "{{ project }}_{{ application }}_replica1_external_ip"
           - "{{ project }}_{{ application }}_replica2_internal_ip"
           - "{{ project }}_{{ application }}_replica2_external_ip"
+      - name: POSTGRESQL OVERLAY | deleting all security groups
+        azure_rm_securitygroup:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "{{ item }}"
+          state: absent
+        with_items:
+          - "dnsg_{{ project }}_closed"
+          - "dnsg_{{ project }}_ssh_private_internal"
+          - "dnsg_{{ project }}_{{ application }}_public_internal"
       when: cloud == 'azure'
