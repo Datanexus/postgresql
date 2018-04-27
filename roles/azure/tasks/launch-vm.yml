@@ -11,16 +11,18 @@
     rules:
       - name: DenyAll
         proto: '*'
-        destination_port_range: 1-65535
-        access: Deny
-        priority: 100
-        direction: Inbound
         source_address_prefix: '*'
+        source_port_range: '*'
+        destination_address_prefix: "{{ internal_private_subnet_result.properties.addressPrefix }}"
+        destination_port_range: '*'
+        access: Deny
+        priority: 200
+        direction: Inbound
       - name: AllowSSH
         proto: TCP
         destination_port_range: 22
         access: Allow
-        priority: 101
+        priority: 100
         direction: Inbound
         source_address_prefix: "{{ internal_private_subnet_result.properties.addressPrefix }}"
   register: sg_ssh_private
@@ -33,18 +35,22 @@
     rules:
       - name: DenyAll
         proto: '*'
-        destination_port_range: 1-65535
-        access: Deny
-        priority: 100
-        direction: Inbound
         source_address_prefix: '*'
+        source_port_range: '*'
+        destination_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
+        destination_port_range: '*'
+        access: Deny
+        priority: 200
+        direction: Inbound
       - name: AllowPG
         proto: TCP
+        source_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
+        source_port_range: '*'
+        destination_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
         destination_port_range: 5432
         access: Allow
         priority: 101
         direction: Inbound
-        source_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
   register: sg_postgresql
 
 - name: POSTGRESQL OVERLAY | setting key path to {{ key_path }}

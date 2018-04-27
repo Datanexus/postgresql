@@ -1,0 +1,20 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# apply Azure openvpn security group rules to existing vm
+---
+- name: POSTGRESQL OVERLAY AZURE | applying postgresql security group
+  azure_rm_securitygroup:
+    resource_group: "{{ specified_resourcegroup.name }}"
+    name: "dnsg_{{ project }}_{{ application }}_public_internal"
+    pure_rules: yes
+    rules:
+      - name: DenyAll
+        proto: '*'
+        destination_address_prefix: '*'
+        destination_port_range: '*'
+        source_address_prefix: '*'
+        source_port_range: '*'
+        direction: Outbound
+        access: Deny
+        priority: 100
+  register: sg_postgresql
