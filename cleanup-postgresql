@@ -131,21 +131,6 @@
           - "{{ project }}_{{ application }}_replica1_internal"
           - "{{ project }}_{{ application }}_replica1_external"
 
-      - name: POSTGRESQL CLEANUP | deleting public ips
-        azure_rm_publicipaddress:
-          resource_group: "{{ specified_resourcegroup.name }}"
-          name: "{{ item }}"
-          state: absent
-        with_items:
-          - "{{ project }}_{{ application }}"
-          - "{{ project }}_{{ application }}_internal_ip"
-          - "{{ project }}_{{ application }}_external_ip"
-          - "{{ project }}_{{ application }}_master_internal_ip"
-          - "{{ project }}_{{ application }}_master_external_ip"
-          - "{{ project }}_{{ application }}_replica1_internal_ip"
-          - "{{ project }}_{{ application }}_replica1_external_ip"
-          - "{{ project }}_{{ application }}_replica2_internal_ip"
-          - "{{ project }}_{{ application }}_replica2_external_ip"
       - name: POSTGRESQL OVERLAY | deleting all security groups
         azure_rm_securitygroup:
           resource_group: "{{ specified_resourcegroup.name }}"
