@@ -39,11 +39,6 @@
         name: aws
         tasks_from: create-securitygroup
       when: cloud == 'aws'
-    
-    - include_role:
-        name: azure
-        tasks_from: create-securitygroup
-      when: cloud == 'azure'
 
 - name: POSTGRESQL OVERLAY | launching VM
   tags: vm

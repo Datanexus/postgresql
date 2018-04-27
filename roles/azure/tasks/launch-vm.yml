@@ -9,12 +9,13 @@
     name: "dnsg_{{ project }}_ssh_private_internal"
     purge_rules: yes
     rules:
-      - name: DenySSH
-        proto: TCP
-        destination_port_range: 22
+      - name: DenyAll
+        proto: '*'
+        destination_port_range: 1-65535
         access: Deny
         priority: 100
         direction: Inbound
+        source_address_prefix: '*'
       - name: AllowSSH
         proto: TCP
         destination_port_range: 22
@@ -24,19 +25,27 @@
         source_address_prefix: "{{ internal_private_subnet_result.properties.addressPrefix }}"
   register: sg_ssh_private
 
-- name: POSTGRESQL OVERLAY | creating closed security group
+- name: POSTGRESQL OVERLAY | creating postgresql security group
   azure_rm_securitygroup:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "dnsg_{{ project }}_closed"
+    name: "dnsg_{{ project }}_{{ application }}_public_internal"
     purge_rules: yes
     rules:
       - name: DenyAll
-        proto: TCP
+        proto: '*'
         destination_port_range: 1-65535
         access: Deny
         priority: 100
         direction: Inbound
-  register: sg_closed
+        source_address_prefix: '*'
+      - name: AllowPG
+        proto: TCP
+        destination_port_range: 5432
+        access: Allow
+        priority: 101
+        direction: Inbound
+        source_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
+  register: sg_postgresql
 
 - name: POSTGRESQL OVERLAY | setting key path to {{ key_path }}
   set_fact: key_path="{{ ansible_env.PWD }}"
@@ -82,7 +91,7 @@
       name: "{{ project }}_{{ application }}_external"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: '{{ internal_public_subnet_result.name }}'
-      security_group: "dnsg_{{ project }}_closed"
+      security_group: "dnsg_{{ project }}_{{ application }}_public_internal"
       ip_configurations:
         - name: ipconfig1
           primary: yes
@@ -126,7 +135,7 @@
       name: "{{ project }}_{{ application }}_master_external"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: '{{ internal_public_subnet_result.name }}'
-      security_group: "dnsg_{{ project }}_closed"
+      security_group: "dnsg_{{ project }}_{{ application }}_public_internal"
       ip_configurations:
         - name: ipconfig1
           primary: yes
@@ -154,7 +163,7 @@
       name: "{{ project }}_{{ application }}_replica1_external"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: '{{ internal_public_subnet_result.name }}'
-      security_group: "dnsg_{{ project }}_closed"
+      security_group: "dnsg_{{ project }}_{{ application }}_public_internal"
       ip_configurations:
         - name: ipconfig1
           primary: yes
