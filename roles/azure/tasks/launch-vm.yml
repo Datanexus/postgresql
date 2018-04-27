@@ -85,7 +85,6 @@
       security_group: "dnsg_{{ project }}_closed"
       ip_configurations:
         - name: ipconfig1
-          public_ip_address_name: "{{ project }}_{{ application }}_external_ip"
           primary: yes
       tags:
         Application: "{{ application }}"
@@ -130,7 +129,6 @@
       security_group: "dnsg_{{ project }}_closed"
       ip_configurations:
         - name: ipconfig1
-          public_ip_address_name: "{{ project }}_{{ application }}_master_external_ip"
           primary: yes
       tags:
         Application: "{{ application }}"
@@ -159,7 +157,6 @@
       security_group: "dnsg_{{ project }}_closed"
       ip_configurations:
         - name: ipconfig1
-          public_ip_address_name: "{{ project }}_{{ application }}_replica1_external_ip"
           primary: yes
       tags:
         Application: "{{ application }}"
