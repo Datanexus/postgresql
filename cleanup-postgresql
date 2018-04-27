@@ -137,6 +137,7 @@
           name: "{{ item }}"
           state: absent
         with_items:
+          - "{{ project }}_{{ application }}"
           - "{{ project }}_{{ application }}_internal_ip"
           - "{{ project }}_{{ application }}_external_ip"
           - "{{ project }}_{{ application }}_master_internal_ip"
@@ -153,5 +154,10 @@
         with_items:
           - "dnsg_{{ project }}_closed"
           - "dnsg_{{ project }}_ssh_private_internal"
+          - "dnsg_{{ project }}_ssh_public_external"
           - "dnsg_{{ project }}_{{ application }}_public_internal"
+          - "{{ project }}_{{ application }}_master_external"
+          - "{{ project }}_{{ application }}_master_internal"
+          - "{{ project }}_{{ application }}_replica1_external"
+          - "{{ project }}_{{ application }}_replica1_internal"
       when: cloud == 'azure'

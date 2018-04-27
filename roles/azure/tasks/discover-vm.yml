@@ -7,33 +7,33 @@
   when: key_path is not defined
 
 - name: POSTGRESQL OVERLAY | discovering {{ application }} master
-  azure_rm_publicipaddress_facts:
+  azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ project }}_{{ application }}_master_internal_ip"
+    name: "{{ project }}_{{ application }}_master_internal"
   register: master_postgresql
-  
+
 - name: POSTGRESQL OVERLAY | adding all postgres masters to {{ application }} host group
-  add_host: hostname="{{ item.properties.ipAddress }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
-  with_items: "{{ master_postgresql.ansible_facts.azure_publicipaddresses }}"
+  add_host: hostname="{{ item.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  with_items: "{{ master_postgresql.ansible_facts.azure_networkinterfaces }}"
   # when:
 #     - cloud == 'azure'
 #     - master_postgresql is defined
 #     - postgresql_instances.instances|length > 0
     
 - name: POSTGRESQL OVERLAY | adding all postgres masters to {{ application }} master host group
-  add_host: hostname="{{ item.properties.ipAddress }}" groupname=postgresql_master ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
-  with_items: "{{ master_postgresql.ansible_facts.azure_publicipaddresses }}"
+  add_host: hostname="{{ item.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql_master ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  with_items: "{{ master_postgresql.ansible_facts.azure_networkinterfaces }}"
 
 - name: POSTGRESQL OVERLAY | discovering {{ application }} replica1
-  azure_rm_publicipaddress_facts:
+  azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ project }}_{{ application }}_replica1_internal_ip"
+    name: "{{ project }}_{{ application }}_replica1_internal"
   register: replica1_postgresql
 
 - name: POSTGRESQL OVERLAY | building postgresql host group
-  add_host: hostname="{{ item.properties.ipAddress }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
-  with_items: "{{ replica1_postgresql.ansible_facts.azure_publicipaddresses }}"
+  add_host: hostname="{{ item.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  with_items: "{{ replica1_postgresql.ansible_facts.azure_networkinterfaces }}"
 
 - name: POSTGRESQL OVERLAY | building postgresql replica host group
-  add_host: hostname="{{ item.properties.ipAddress }}" groupname=postgresql_replica ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
-  with_items: "{{ replica1_postgresql.ansible_facts.azure_publicipaddresses }}"
+  add_host: hostname="{{ item.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql_replica ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  with_items: "{{ replica1_postgresql.ansible_facts.azure_networkinterfaces }}"
