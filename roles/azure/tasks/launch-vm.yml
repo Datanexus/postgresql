@@ -185,7 +185,7 @@
           primary: yes
       tags:
         Application: "{{ application }}"
-        Role: replica1
+        Role: replica
         Tenant: "{{ tenant }}"
         Project: "{{ project }}"
         Cloud: "{{ cloud }}"
@@ -205,7 +205,7 @@
           primary: yes
       tags:
         Application: "{{ application }}"
-        Role: replica1
+        Role: replica
         Tenant: "{{ tenant }}"
         Project: "{{ project }}"
         Cloud: "{{ cloud }}"
@@ -215,11 +215,11 @@
 
   # this is not necessarily idempotent because we're shelling out
   - name: POSTGRESQL OVERLAY | creating {{ application }} master VM in {{ specified_resourcegroup.name }}
-    command: "az vm create --resource-group {{ specified_resourcegroup.name }} --name {{ project }}-{{ application }}-master --location {{ region }} --nics {{ project }}_{{ application }}_master_internal {{ project }}_{{ application }}_master_external --size {{ master_image }} --os-disk-size-gb {{ root_volume }} --data-disk-sizes-gb {{ data_volume }} --image Centos --admin-username {{ user }} --authentication-type ssh --ssh-key-value {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub --tags Name={{ project }}_{{ application }} Tenant={{ tenant }} Project={{ project }} Cloud={{ cloud }} Domain={{ domain }} Application={{ application }} Cluster={{ cluster | default ('a') }} Role=master Dataflow={{ dataflow | default ('none') }}"
+    command: "az vm create --resource-group {{ specified_resourcegroup.name }} --name {{ project }}-{{ application }}-master --location {{ region }} --nics {{ project }}_{{ application }}_master_internal {{ project }}_{{ application }}_master_external --size {{ master_image }} --os-disk-size-gb {{ root_volume }} --data-disk-sizes-gb {{ data_volume }} --image Centos --admin-username {{ user }} --authentication-type ssh --ssh-key-value {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub --tags Name={{ project }}_{{ application }} Tenant={{ tenant }} Project={{ project }} Cloud={{ cloud }} Domain={{ domain }} Application={{ application }} Cluster={{ cluster | default ('a') }} Role={{ role | default ('master') }} Dataflow={{ dataflow | default ('none') }}"
 
   # this is not necessarily idempotent because we're shelling out
   - name: POSTGRESQL OVERLAY | creating {{ application }} replica1 VM in {{ specified_resourcegroup.name }}
-    command: "az vm create --resource-group {{ specified_resourcegroup.name }} --name {{ project }}-{{ application }}-replica1 --location {{ region }} --nics {{ project }}_{{ application }}_replica1_internal {{ project }}_{{ application }}_replica1_external --size {{ replica_image }} --os-disk-size-gb {{ root_volume }} --data-disk-sizes-gb {{ data_volume }} --image Centos --admin-username {{ user }} --authentication-type ssh --ssh-key-value {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub --tags Name={{ project }}_{{ application }} Tenant={{ tenant }} Project={{ project }} Cloud={{ cloud }} Domain={{ domain }} Application={{ application }} Cluster={{ cluster | default ('a') }} Role=replica Dataflow={{ dataflow | default ('none') }}"
+    command: "az vm create --resource-group {{ specified_resourcegroup.name }} --name {{ project }}-{{ application }}-replica1 --location {{ region }} --nics {{ project }}_{{ application }}_replica1_internal {{ project }}_{{ application }}_replica1_external --size {{ replica_image }} --os-disk-size-gb {{ root_volume }} --data-disk-sizes-gb {{ data_volume }} --image Centos --admin-username {{ user }} --authentication-type ssh --ssh-key-value {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub --tags Name={{ project }}_{{ application }} Tenant={{ tenant }} Project={{ project }} Cloud={{ cloud }} Domain={{ domain }} Application={{ application }} Cluster={{ cluster | default ('a') }} Role={{ role | default ('replica') }} Dataflow={{ dataflow | default ('none') }}"
     
   when: replica
 

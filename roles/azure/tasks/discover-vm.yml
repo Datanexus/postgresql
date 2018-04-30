@@ -10,6 +10,15 @@
   azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
     name: "{{ project }}_{{ application }}_master_internal"
+    tags:
+      - Application:{{ application }}
+      - Role:{{ role | default('master') }}
+      - Tenant:{{ tenant }}
+      - Project:{{ project }}
+      - Cloud:{{ cloud }}
+      - Domain:{{ domain }}
+      - Cluster:{{ cluster | default('a') }}
+      - Dataflow:{{ dataflow | default('none') }}
   register: master_postgresql
 
 - name: POSTGRESQL OVERLAY | adding all postgres masters to {{ application }} host group
@@ -28,6 +37,15 @@
   azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
     name: "{{ project }}_{{ application }}_replica1_internal"
+    tags:
+      - Application:{{ application }}
+      - Role:{{ role | default('replica') }}
+      - Tenant:{{ tenant }}
+      - Project:{{ project }}
+      - Cloud:{{ cloud }}
+      - Domain:{{ domain }}
+      - Cluster:{{ cluster | default('a') }}
+      - Dataflow:{{ dataflow | default('none') }}
   register: replica1_postgresql
 
 - name: POSTGRESQL OVERLAY | building postgresql host group
