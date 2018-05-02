@@ -16,5 +16,5 @@
         source_port_range: '*'
         direction: Outbound
         access: Deny
-        priority: 100
+        priority: 4000
   register: sg_postgresql
