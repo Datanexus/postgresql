@@ -173,4 +173,39 @@
         name: replica-streaming
       when:
         - groups['postgresql_master'] is defined
-        - groups['postgresql_master'] | length > 0
+        - groups['postgresql_master'] | length > 0        
+           
+- name: POSTGRESQL OVERLAY MASTER | staging data
+  tags: 
+    - vm
+    - postgresql
+  hosts: postgresql_master
+  gather_facts: no
+  vars_files:
+    - vars/postgresql.yml
+  tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
+      
+    - block:
+      
+      - name: POSTGRESQL OVERLAY MASTER | checking if {{ datafile }} exists
+        stat:
+          path: "{{ datafile }}"
+        register: sqlscript
+      
+      - name: POSTGRESQL OVERLAY MASTER | uploading {{ datafile }}
+        copy:
+          src: "{{ datafile }}"
+          dest: "/home/{{ user }}/{{ datafile }}"
+          owner: "{{ user }}"
+          group: "{{ user }}"
+          mode: 0600
+        when: sqlscript.stat.exists
+        
+      - name: POSTGRESQL OVERLAY MASTER | executing {{ datafile }}
+        command: /usr/bin/psql -f /home/{{ user }}/{{ datafile }}
+        when: sqlscript.stat.exists
+
+      when:
+        - datafile is defined
