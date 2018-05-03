@@ -13,18 +13,18 @@
         proto: '*'
         source_address_prefix: '*'
         source_port_range: '*'
-        destination_address_prefix: "{{ internal_private_subnet_result.properties.addressPrefix }}"
+        destination_address_prefix: '*'
         destination_port_range: '*'
         access: Deny
         priority: 200
         direction: Inbound
       - name: AllowSSH
         proto: TCP
+        source_address_prefix: "{{ internal_private_subnet_result.properties.addressPrefix }}"
         destination_port_range: 22
         access: Allow
         priority: 100
         direction: Inbound
-        source_address_prefix: "{{ internal_private_subnet_result.properties.addressPrefix }}"
   register: sg_ssh_private
 
 - name: POSTGRESQL OVERLAY | creating postgresql security group
@@ -37,7 +37,7 @@
         proto: '*'
         source_address_prefix: '*'
         source_port_range: '*'
-        destination_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
+        destination_address_prefix: '*'
         destination_port_range: '*'
         access: Deny
         priority: 200
