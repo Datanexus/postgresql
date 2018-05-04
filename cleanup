@@ -3,13 +3,13 @@
 
 export AWS_PROFILE=datanexus    # set this to the desired AWS profile in ~/.aws/credentials
 
-if [ "$1" == "-h" ] ; then
-    echo "Usage:  `basename $0` [-h]\t\thelp"
-    echo "\t`basename $0` [aws | osp | FILE]\tuse aws, osp, or FILE configuration file"
+if [ "$1" = "-h" ] ; then
+    printf "Usage:  cleanup [-h]\\t\thelp\\n"
+    printf "\\tcleanup [aws | osp | FILE]\tuse aws, osp, or FILE configuration file\\n"
     exit 0
 fi
 
-if [ $1 == "aws" ] || [ $1 == "osp" ]; then
+if [ $1 = "aws" ] || [ $1 = "osp" ]; then
   export configuration="$1-configuration.yml"
 else
   export configuration="$1"
