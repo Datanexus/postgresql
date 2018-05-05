@@ -4,6 +4,7 @@
 # remove postgresql instances and associated infrastructure
 ---
 - hosts: localhost
+  connection: local
   vars_files:
     - "{{ configuration }}"
   gather_facts: true  

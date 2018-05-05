@@ -8,6 +8,7 @@
     - postgresql
     - vm
   hosts: localhost
+  connection: local
   vars_files:
     - vars/postgresql.yml
   gather_facts: no
@@ -30,6 +31,7 @@
     - postgresql
     - vm
   hosts: localhost
+  connection: local
   gather_facts: no
   tasks:
     - include_vars: "{{ configuration }}"
@@ -68,6 +70,7 @@
   tags:
     - postgresql
   hosts: localhost
+  connection: local
   vars_files:
     - vars/postgresql.yml
   gather_facts: no
@@ -87,6 +90,7 @@
     - postgresql
     - vm
   hosts: localhost
+  connection: local
   vars_files:
     - vars/postgresql.yml
   gather_facts: no
