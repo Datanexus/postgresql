@@ -172,17 +172,6 @@
   become: true
   when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
 
-# community CentOS image ships with dnsmasq enabled so we need to disable it
-- name: GENERIC PREFLIGHT OVERLAY | stopping dnsmasq
-  service:
-    name: dnsmasq
-    state: stopped
-    enabled: no
-  become: true
-  when:
-    - ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
-    - cloud == 'azure'
-
 # community CentOS image ships with rpcbind enabled; we don't use NFS by default so disable it
 - name: GENERIC PREFLIGHT OVERLAY | stopping rpcbind
   service:
