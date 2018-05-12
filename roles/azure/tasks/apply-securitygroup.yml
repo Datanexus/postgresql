@@ -8,7 +8,7 @@
     name: "dnsg_{{ project }}_{{ application }}_public_internal"
     rules:
       - name: AllowPG
-        proto: TCP
+        protocol: Tcp
         destination_port_range: 5432
         access: Allow
         priority: 101

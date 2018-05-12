@@ -9,7 +9,7 @@
     pure_rules: yes
     rules:
       - name: DenyAll
-        proto: '*'
+        protocol: '*'
         destination_address_prefix: '*'
         destination_port_range: '*'
         source_address_prefix: '*'
