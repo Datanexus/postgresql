@@ -6,10 +6,32 @@
   set_fact: key_path="{{ ansible_env.PWD }}"
   when: key_path is not defined
 
+- name: POSTGRESQL OVERLAY | discovering standalone {{ application }}
+  azure_rm_networkinterface_facts:
+    resource_group: "{{ specified_resourcegroup.name }}"
+    name: "{{ project }}_{{ application }}_{{ item }}_internal"
+    tags:
+      - Application:{{ application }}
+      - Role:{{ role | default('none') }}
+      - Tenant:{{ tenant }}
+      - Project:{{ project }}
+      - Cloud:{{ cloud }}
+      - Domain:{{ domain }}
+      - Cluster:{{ cluster | default('a') }}
+      - Dataflow:{{ dataflow | default('none') }}
+  with_sequence: count={{ count }}
+  register: all_postgresql
+
+# the when: clause is to handle the possibility of empty roles sets, such as when there is no master or replica
+- name: POSTGRESQL OVERLAY | adding all postgres nodes to {{ application }} host group
+  add_host: hostname="{{ item.ansible_facts.azure_networkinterfaces.0.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  when: item.ansible_facts.azure_networkinterfaces | length > 0
+  with_items: "{{ all_postgresql.results }}"
+  
 - name: POSTGRESQL OVERLAY | discovering {{ application }} master
   azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ project }}_{{ application }}_master_internal"
+    name: "{{ project }}_{{ application }}_{{ item }}_master_internal"
     tags:
       - Application:{{ application }}
       - Role:{{ role | default('master') }}
@@ -19,24 +41,23 @@
       - Domain:{{ domain }}
       - Cluster:{{ cluster | default('a') }}
       - Dataflow:{{ dataflow | default('none') }}
+  with_sequence: count={{ count }}
   register: master_postgresql
-
+  
 - name: POSTGRESQL OVERLAY | adding all postgres masters to {{ application }} host group
-  add_host: hostname="{{ item.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
-  with_items: "{{ master_postgresql.ansible_facts.azure_networkinterfaces }}"
-  # when:
-#     - cloud == 'azure'
-#     - master_postgresql is defined
-#     - postgresql_instances.instances|length > 0
-    
+  add_host: hostname="{{ item.ansible_facts.azure_networkinterfaces.0.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  when: item.ansible_facts.azure_networkinterfaces | length > 0
+  with_items: "{{ master_postgresql.results }}"
+  
 - name: POSTGRESQL OVERLAY | adding all postgres masters to {{ application }} master host group
-  add_host: hostname="{{ item.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql_master ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
-  with_items: "{{ master_postgresql.ansible_facts.azure_networkinterfaces }}"
+  add_host: hostname="{{ item.ansible_facts.azure_networkinterfaces.0.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql_master ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  when: item.ansible_facts.azure_networkinterfaces | length > 0
+  with_items: "{{ master_postgresql.results }}"
 
-- name: POSTGRESQL OVERLAY | discovering {{ application }} replica1
+- name: POSTGRESQL OVERLAY | discovering {{ application }} replica
   azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ project }}_{{ application }}_replica1_internal"
+    name: "{{ project }}_{{ application }}_{{ item }}_replica_internal"
     tags:
       - Application:{{ application }}
       - Role:{{ role | default('replica') }}
@@ -46,12 +67,15 @@
       - Domain:{{ domain }}
       - Cluster:{{ cluster | default('a') }}
       - Dataflow:{{ dataflow | default('none') }}
-  register: replica1_postgresql
+  with_sequence: count={{ count }}
+  register: replica_postgresql
 
 - name: POSTGRESQL OVERLAY | building postgresql host group
-  add_host: hostname="{{ item.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
-  with_items: "{{ replica1_postgresql.ansible_facts.azure_networkinterfaces }}"
+  add_host: hostname="{{ item.ansible_facts.azure_networkinterfaces.0.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  when: item.ansible_facts.azure_networkinterfaces | length > 0
+  with_items: "{{ replica_postgresql.results }}"
 
 - name: POSTGRESQL OVERLAY | building postgresql replica host group
-  add_host: hostname="{{ item.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql_replica ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
-  with_items: "{{ replica1_postgresql.ansible_facts.azure_networkinterfaces }}"
+  add_host: hostname="{{ item.ansible_facts.azure_networkinterfaces.0.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql_replica ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
+  when: item.ansible_facts.azure_networkinterfaces | length > 0
+  with_items: "{{ replica_postgresql.results }}"

@@ -58,39 +58,47 @@
   become: true
   
 - block:
-  
-  - name: POSTGRESQL PREFLIGHT OVERLAY | discovering new block device
-    shell: "/bin/dmesg | /bin/grep SCSI | /bin/tail -1 | /bin/awk '{ print $5 }' | /bin/cut -d[ -f2 | /bin/cut -d] -f1"
-    # command: /usr/bin/ls /proc/fs/ext4
+
+  - name: GENERIC PREFLIGHT OVERLAY | reading lun0 link to discover data block device
+    command: /usr/bin/readlink -f /dev/disk/azure/scsi1/lun0
     register: found_block_device
-    
-  - set_fact:
-      block_device: "/dev/{{ found_block_device.stdout }}"
-      
-  - name: POSTGRESQL PREFLIGHT OVERLAY | setting disk to a full partition
+
+  - name: GENERIC PREFLIGHT OVERLAY | setting block device to {{ found_block_device.stdout }}
+    set_fact:
+      block_device: "{{ found_block_device.stdout }}"
+
+  - name: GENERIC PREFLIGHT OVERLAY | setting {{ block_device }} to a full partition
     set_fact:
       data_filesystem: "{{ block_device }}1"
     when: block_device is defined
-    
-  - name: POSTGRESQL PREFLIGHT OVERLAY | partitioning data disk into single partition
+
+  - name: GENERIC PREFLIGHT OVERLAY | partitioning data disk into single {{ data_volume }} partition
     parted:
       device: "{{ block_device }}"
       number: 1
       state: present
-  
+
   # the ansible filesystem module was succeeding without errors, but the resulting filesystem was unmountable
-  - name: POSTGRESQL PREFLIGHT OVERLAY | making filesystem on {{ data_filesystem }}
+  - name: GENERIC PREFLIGHT OVERLAY | making filesystem on {{ data_filesystem }}
     command: "/usr/sbin/mkfs -t ext4 {{ data_filesystem }}"
     when: data_filesystem is defined
-    
-  - name: POSTGRESQL PREFLIGHT OVERLAY | mounting Azure data volume {{ data_filesystem }} to {{ mountpoint }}
+
+  - shell: "/usr/sbin/blkid {{ data_filesystem }} | /bin/awk '{ print $2 }'"
+    register: shell_out
+
+  # technically removing the quotes isn't necessary, but it's pretty
+  - set_fact:
+     block_uuid: "{{ shell_out.stdout | replace('\"', '') }}"
+
+  - name: GENERIC PREFLIGHT OVERLAY | mounting Azure data volume {{ block_uuid }} to {{ mountpoint }}
     mount:
       path: "{{ mountpoint }}"
-      src: "{{ data_filesystem }}"
+      src: "{{ block_uuid }}"
       fstype: ext4
       state: mounted
-  when: cloud == 'azure' and mountpoint is defined
-  become: true
+
+  when: cloud == 'azure'
+  become: true  
   
 - name: POSTGRESQL PREFLIGHT OVERLAY | ensure sshd_config is writable
   command: /bin/chattr -i /etc/ssh/sshd_config
