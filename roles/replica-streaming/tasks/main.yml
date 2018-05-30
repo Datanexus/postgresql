@@ -31,11 +31,11 @@
     - name: POSTGRESQL REPLICA OVERLAY | building postgresql password file
       blockinfile:
         name: "{{ postgresql_home_dir }}/.pgpass"
+        owner: "{{ postgresql_user }}"
         mode: 0600
         create: yes
         block: |
           {{ hostvars[groups.postgresql_master.0].postgresql_interface_ipv4 }}:5432:*:replicator:replicator
-      become_user: "{{ postgresql_user }}"
               
     - name: POSTGRESQL REPLICA OVERLAY | copying initial database
       command: /bin/pg_basebackup -h {{ hostvars[item].postgresql_interface_ipv4  }} -D {{ postgresql_data_dir }} -U replicator -v -P --xlog-method=stream
@@ -49,13 +49,13 @@
     - name: POSTGRESQL REPLICA OVERLAY | building recovery file
       blockinfile:
         name: "{{ postgresql_config_path }}/recovery.conf"
+        owner: "{{ postgresql_user }}"
         mode: 0600
         create: yes
         block: |
           standby_mode = 'on'
           primary_conninfo = 'host={{ hostvars[item].postgresql_interface_ipv4 }} port=5432 user=replicator password=replicator'
           trigger_file = '/tmp/postgresql.trigger'
-      become_user: "{{ postgresql_user }}"
       with_items: "{{ groups.postgresql_master }}"
       
     - name: POSTGRESQL REPLICA OVERLAY | fixing SE Linux labels on {{ postgresql_data_dir }}
