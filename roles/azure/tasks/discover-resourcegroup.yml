@@ -4,7 +4,7 @@
 ---
 - name: POSTGRESQL OVERLAY | retrieving resource group by name
   azure_rm_resourcegroup_facts:
-    name: "{{ project }}_{{ domain }}"
+    name: "{{ project }}_{{ domain }}_{{ region }}"
   register: resourcegroup_by_name
   when: project is defined and domain is defined
 

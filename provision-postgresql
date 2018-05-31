@@ -73,7 +73,7 @@
   connection: local
   vars_files:
     - vars/postgresql.yml
-  gather_facts: no
+  gather_facts: yes
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
@@ -83,8 +83,12 @@
         tasks_from: apply-securitygroup
       when: cloud == 'aws'
     
-    # azure security groups are applied on instance boot
-      
+
+    - include_role:
+        name: azure
+        tasks_from: modify-existing-securitygroup
+      when: cloud == 'azure'
+          
 - name: POSTGRESQL OVERLAY | gathering {{ cloud }} inventory
   tags:
     - postgresql

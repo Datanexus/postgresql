@@ -1,7 +1,6 @@
 # (c) 2016 DataNexus Inc.  All Rights Reserved.
 #
 # Launch an Azure AMI
-# 
 ---
 - name: POSTGRESQL OVERLAY | creating ssh security group
   azure_rm_securitygroup:
@@ -75,12 +74,22 @@
       - new_azure_keypair.changed
   when:
     - not existing_key.stat.exists
-  
+
+- set_fact:
+    key_contents: "{{ lookup('file', item) }}"
+  with_items:
+    - "{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub"
+
+# the math is overkill, but it's useful if we want to get more complicated
+- name: POSTGRESQL OVERLAY | setting count to {{ count }}
+  set_fact:
+    count: "{{ instances | default(1) | int * 1  }}"
+    
 - block:
-  - name: POSTGRESQL OVERLAY | creating {{ application }} virtual {{ project }}_{{ application }}_internal NIC
+  - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} virtual {{ project }}_{{ application }}_internal NIC
     azure_rm_networkinterface:
       resource_group: "{{ specified_resourcegroup.name }}"
-      name: "{{ project }}_{{ application }}_internal"    
+      name: "{{ project }}_{{ application }}_{{ item }}_internal"    
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: "{{ internal_private_subnet_result.name }}"
       security_group: "dnsg_{{ project }}_ssh_private_internal"
@@ -96,11 +105,12 @@
         Domain: "{{ domain }}"
         Cluster: "{{ cluster | default ('a') }}"
         Dataflow: "{{ dataflow | default ('none') }}"
-
-  - name: POSTGRESQL OVERLAY | creating {{ application }} virtual {{ project }}_{{ application }}_external NIC
+    with_sequence: count={{ count }}
+    
+  - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} virtual {{ project }}_{{ application }}_external NIC
     azure_rm_networkinterface:
       resource_group: "{{ specified_resourcegroup.name }}"
-      name: "{{ project }}_{{ application }}_external"
+      name: "{{ project }}_{{ application }}_{{ item }}_external"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: '{{ internal_public_subnet_result.name }}'
       security_group: "dnsg_{{ project }}_{{ application }}_public_internal"
@@ -116,34 +126,47 @@
         Domain: "{{ domain }}"
         Cluster: "{{ cluster | default ('a') }}"
         Dataflow: "{{ dataflow | default ('none') }}"
+    with_sequence: count={{ count }}
   
-  # this is not necessarily idempotent because we're shelling out
-  - name: POSTGRESQL OVERLAY | creating {{ application }} VM in {{ specified_resourcegroup.name }}
-    command: "az vm create --resource-group {{ specified_resourcegroup.name }} --name {{ project }}-{{ application }} --location {{ region }} --nics {{ project }}_{{ application }}_internal {{ project }}_{{ application }}_external --size {{ type | default('Standard_D8_v3') }} --os-disk-size-gb {{ root_volume }} --image {{ image | default('Centos') }} --admin-username {{ user }} --authentication-type ssh --ssh-key-value {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub --tags Name={{ project }}_{{ application }} Tenant={{ tenant }} Project={{ project }} Cloud={{ cloud }} Domain={{ domain }} Application={{ application }} Cluster={{ cluster | default ('a') }} Role={{ role | default ('none') }} Dataflow={{ dataflow | default ('none') }}"
-
-  - name: POSTGRESQL OVERLAY | creating {{ application }} data disk in {{ specified_resourcegroup.name }}
-    azure_rm_managed_disk:
-      name: "{{ project }}-{{ application }}-data"
+  - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} VM in {{ specified_resourcegroup.name }}
+    azure_rm_virtualmachine:
       resource_group: "{{ specified_resourcegroup.name }}"
-      disk_size_gb: "{{ data_volume }}"
-      managed_by: "{{ project }}-{{ application }}"
-        
-  - name: Get facts for all Public IPs within a resource groups
-    azure_rm_publicipaddress_facts:
-      resource_group: "{{ specified_resourcegroup.name }}"
-      name: "{{ project }}_{{ application }}_internal_ip"
-    register: all_ips
-
-  - debug: msg="{{ item.properties.ipAddress }}" 
-    with_items: "{{ all_ips.ansible_facts.azure_publicipaddresses }}"
+      name: "{{ project }}-{{ application }}-{{ item }}"
+      location: "{{ region }}"
+      network_interface_names:
+        - "{{ project }}_{{ application }}_{{ item }}_internal"
+        - "{{ project }}_{{ application }}_{{ item }}_external"
+      vm_size: "{{ type }}"
+      managed_disk_type: "{{ root_disk_type | default('Standard_LRS') }}"
+      admin_username: "{{ user }}"
+      ssh_password_enabled: False
+      ssh_public_keys:
+        - path: "/home/{{ user }}/.ssh/authorized_keys"
+          key_data: "{{ key_contents }}"
+      image: "{{ image }}"
+      data_disks:
+        - lun: 0
+          disk_size_gb: "{{ data_volume | default(64) }}"
+          managed_disk_type: "{{ data_disk_type | default('Standard_LRS') }}"
+      tags:
+        Application: "{{ application }}"
+        Role: "{{ role | default ('none') }}"
+        Tenant: "{{ tenant }}"
+        Project: "{{ project }}"
+        Cloud: "{{ cloud }}"
+        Domain: "{{ domain }}"
+        Cluster: "{{ cluster | default ('a') }}"
+        Dataflow: "{{ dataflow | default ('none') }}"
+    with_sequence: count={{ count }}
+    register: create_vm_log
 
   when: not replica
   
 - block:
-  - name: POSTGRESQL OVERLAY | creating {{ application }} master virtual {{ project }}_{{ application }}_internal NIC
+  - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} master virtual {{ project }}_{{ application }}_internal NIC
     azure_rm_networkinterface:
       resource_group: "{{ specified_resourcegroup.name }}"
-      name: "{{ project }}_{{ application }}_master_internal"    
+      name: "{{ project }}_{{ application }}_{{ item }}_master_internal"    
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: "{{ internal_private_subnet_result.name }}"
       security_group: "dnsg_{{ project }}_ssh_private_internal"
@@ -159,11 +182,12 @@
         Domain: "{{ domain }}"
         Cluster: "{{ cluster | default ('a') }}"
         Dataflow: "{{ dataflow | default ('none') }}"
-        
-  - name: POSTGRESQL OVERLAY | creating {{ application }} master virtual {{ project }}_{{ application }}_external NIC
+    with_sequence: count={{ count }}
+    
+  - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} master virtual {{ project }}_{{ application }}_external NIC
     azure_rm_networkinterface:
       resource_group: "{{ specified_resourcegroup.name }}"
-      name: "{{ project }}_{{ application }}_master_external"
+      name: "{{ project }}_{{ application }}_{{ item }}_master_external"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: '{{ internal_public_subnet_result.name }}'
       security_group: "dnsg_{{ project }}_{{ application }}_public_internal"
@@ -179,11 +203,12 @@
         Domain: "{{ domain }}"
         Cluster: "{{ cluster | default ('a') }}"
         Dataflow: "{{ dataflow | default ('none') }}"
-        
-  - name: POSTGRESQL OVERLAY | creating {{ application }} replica1 virtual {{ project }}_{{ application }}_internal NIC
+    with_sequence: count={{ count }}
+    
+  - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} replica virtual {{ project }}_{{ application }}_internal NIC
     azure_rm_networkinterface:
       resource_group: "{{ specified_resourcegroup.name }}"
-      name: "{{ project }}_{{ application }}_replica1_internal"    
+      name: "{{ project }}_{{ application }}_{{ count }}_replica_internal"    
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: "{{ internal_private_subnet_result.name }}"
       security_group: "dnsg_{{ project }}_ssh_private_internal"
@@ -199,68 +224,91 @@
         Domain: "{{ domain }}"
         Cluster: "{{ cluster | default ('a') }}"
         Dataflow: "{{ dataflow | default ('none') }}"
-        
-  - name: POSTGRESQL OVERLAY | creating {{ application }} replica1 virtual {{ project }}_{{ application }}_external NIC
-    azure_rm_networkinterface:
-      resource_group: "{{ specified_resourcegroup.name }}"
-      name: "{{ project }}_{{ application }}_replica1_external"
-      virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
-      subnet_name: '{{ internal_public_subnet_result.name }}'
-      security_group: "dnsg_{{ project }}_{{ application }}_public_internal"
-      ip_configurations:
-        - name: ipconfig1
-          primary: yes
-      tags:
-        Application: "{{ application }}"
-        Role: replica
-        Tenant: "{{ tenant }}"
-        Project: "{{ project }}"
-        Cloud: "{{ cloud }}"
-        Domain: "{{ domain }}"
-        Cluster: "{{ cluster | default ('a') }}"
-        Dataflow: "{{ dataflow | default ('none') }}"
-
-  # this is not necessarily idempotent because we're shelling out
-  - name: POSTGRESQL OVERLAY | creating {{ application }} master VM in {{ specified_resourcegroup.name }}
-    command: "az vm create --resource-group {{ specified_resourcegroup.name }} --name {{ project }}-{{ application }}-master --location {{ region }} --nics {{ project }}_{{ application }}_master_internal {{ project }}_{{ application }}_master_external --size {{ type }} --os-disk-size-gb {{ root_volume }} --image {{ image | default('Centos') }} --admin-username {{ user }} --authentication-type ssh --ssh-key-value {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub --tags Name={{ project }}_{{ application }} Tenant={{ tenant }} Project={{ project }} Cloud={{ cloud }} Domain={{ domain }} Application={{ application }} Cluster={{ cluster | default ('a') }} Role={{ role | default ('master') }} Dataflow={{ dataflow | default ('none') }}"
-  
-  - name: POSTGRESQL OVERLAY | creating {{ application }} master data disk in {{ specified_resourcegroup.name }}
-    azure_rm_managed_disk:
-      name: "{{ project }}-{{ application }}-master-data"
-      resource_group: "{{ specified_resourcegroup.name }}"
-      disk_size_gb: "{{ data_volume }}"
-      managed_by: "{{ project }}-{{ application }}-master"
+    with_sequence: count={{ count }}
       
-  # this is not necessarily idempotent because we're shelling out
-  - name: POSTGRESQL OVERLAY | creating {{ application }} replica1 VM in {{ specified_resourcegroup.name }}
-    command: "az vm create --resource-group {{ specified_resourcegroup.name }} --name {{ project }}-{{ application }}-replica1 --location {{ region }} --nics {{ project }}_{{ application }}_replica1_internal {{ project }}_{{ application }}_replica1_external --size {{ type }} --os-disk-size-gb {{ root_volume }} --image {{ image | default('Centos') }} --admin-username {{ user }} --authentication-type ssh --ssh-key-value {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub --tags Name={{ project }}_{{ application }} Tenant={{ tenant }} Project={{ project }} Cloud={{ cloud }} Domain={{ domain }} Application={{ application }} Cluster={{ cluster | default ('a') }} Role={{ role | default ('replica') }} Dataflow={{ dataflow | default ('none') }}"
-  
-  - name: POSTGRESQL OVERLAY | creating {{ application }} replica1 data disk in {{ specified_resourcegroup.name }}
-    azure_rm_managed_disk:
-      name: "{{ project }}-{{ application }}-replica1-data"
+  - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} replica virtual {{ project }}_{{ application }}_external NIC
+    azure_rm_networkinterface:
       resource_group: "{{ specified_resourcegroup.name }}"
-      disk_size_gb: "{{ data_volume }}"
-      managed_by: "{{ project }}-{{ application }}-replica1"
+      name: "{{ project }}_{{ application }}_{{ count }}_replica_external"
+      virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
+      subnet_name: '{{ internal_public_subnet_result.name }}'
+      security_group: "dnsg_{{ project }}_{{ application }}_public_internal"
+      ip_configurations:
+        - name: ipconfig1
+          primary: yes
+      tags:
+        Application: "{{ application }}"
+        Role: replica
+        Tenant: "{{ tenant }}"
+        Project: "{{ project }}"
+        Cloud: "{{ cloud }}"
+        Domain: "{{ domain }}"
+        Cluster: "{{ cluster | default ('a') }}"
+        Dataflow: "{{ dataflow | default ('none') }}"
+    with_sequence: count={{ count }}
+  
+  - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} master VM in {{ specified_resourcegroup.name }}
+    azure_rm_virtualmachine:
+      resource_group: "{{ specified_resourcegroup.name }}"
+      name: "{{ project }}-{{ application }}-{{ item }}-master"
+      location: "{{ region }}"
+      network_interface_names:
+        - "{{ project }}_{{ application }}_{{ item }}_master_internal"
+        - "{{ project }}_{{ application }}_{{ item }}_master_external"
+      vm_size: "{{ type }}"
+      managed_disk_type: "{{ root_disk_type | default('Standard_LRS') }}"
+      admin_username: "{{ user }}"
+      ssh_password_enabled: False
+      ssh_public_keys:
+        - path: "/home/{{ user }}/.ssh/authorized_keys"
+          key_data: "{{ key_contents }}"
+      image: "{{ image }}"
+      data_disks:
+        - lun: 0
+          disk_size_gb: "{{ data_volume | default(64) }}"
+          managed_disk_type: "{{ data_disk_type | default('Standard_LRS') }}"
+      tags:
+        Application: "{{ application }}"
+        Role: "{{ role | default ('master') }}"
+        Tenant: "{{ tenant }}"
+        Project: "{{ project }}"
+        Cloud: "{{ cloud }}"
+        Domain: "{{ domain }}"
+        Cluster: "{{ cluster | default ('a') }}"
+        Dataflow: "{{ dataflow | default ('none') }}"
+    with_sequence: count={{ count }}
+    register: create_vm_log
+  
+  - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} replica VM in {{ specified_resourcegroup.name }}
+    azure_rm_virtualmachine:
+      resource_group: "{{ specified_resourcegroup.name }}"
+      name: "{{ project }}-{{ application }}-{{ item }}-replica"
+      location: "{{ region }}"
+      network_interface_names:
+        - "{{ project }}_{{ application }}_{{ item }}_replica_internal"
+        - "{{ project }}_{{ application }}_{{ item }}_replica_external"
+      vm_size: "{{ type }}"
+      managed_disk_type: "{{ root_disk_type | default('Standard_LRS') }}"
+      admin_username: "{{ user }}"
+      ssh_password_enabled: False
+      ssh_public_keys:
+        - path: "/home/{{ user }}/.ssh/authorized_keys"
+          key_data: "{{ key_contents }}"
+      image: "{{ image }}"
+      data_disks:
+        - lun: 0
+          disk_size_gb: "{{ data_volume | default(64) }}"
+          managed_disk_type: "{{ data_disk_type | default('Standard_LRS') }}"
+      tags:
+        Application: "{{ application }}"
+        Role: "{{ role | default ('replica') }}"
+        Tenant: "{{ tenant }}"
+        Project: "{{ project }}"
+        Cloud: "{{ cloud }}"
+        Domain: "{{ domain }}"
+        Cluster: "{{ cluster | default ('a') }}"
+        Dataflow: "{{ dataflow | default ('none') }}"
+    with_sequence: count={{ count }}
+    register: create_vm_log
         
   when: replica
-
-# multiple NICS fails using ansible
-# - name: POSTGRESQL OVERLAY | creating {{ application }} VM in {{ specified_resourcegroup.name }}
-#   azure_rm_virtualmachine:
-#     resource_group: "{{ specified_resourcegroup.name }}"
-#     name: "{{ project }}-{{ application }}"
-#     # storage_account: '{{ vmname }}'
-#    #  storage_container: '{{ vmname }}'
-#    #  storage_blob: '{{ vmname }}.vhd'
-#     network_interface_names: [  "{{ project }}_{{ application }}_internal", "{{ project }}_{{ application }}_external" ]
-#     vm_size: "{{ image }}"
-#     admin_username: "{{ user }}"
-#     ssh_password_enabled: False
-#     ssh_public_keys:
-#       - path: "/home/{{ user }}/.ssh/authorized_keys"
-#         key_data: "{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem.pub"
-#     image:
-#       offer: CentOS
-#       publisher: OpenLogic
-#       sku: '7.4'
-#       version: latest
