@@ -1,0 +1,30 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# apply postgresql rules to existing security group 
+---
+# when modifying rules, purge existing and bump existing priority by one -- it's the only way it works
+- name: POSTGRESQL OVERLAY AZURE | applying postgresql security group
+  azure_rm_securitygroup:
+    resource_group: "{{ specified_resourcegroup.name }}"
+    name: "dnsg_{{ project }}_{{ application }}_public_internal"
+    purge_rules: yes
+    rules:
+      - name: DenyAll
+        protocol: '*'
+        source_address_prefix: '*'
+        source_port_range: '*'
+        destination_address_prefix: '*'
+        destination_port_range: '*'
+        access: Deny
+        direction: Inbound
+        priority: 201
+      - name: AllowPostgreSQL
+        protocol: Tcp
+        source_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
+        source_port_range: '*'
+        destination_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
+        destination_port_range: 5432
+        access: Allow
+        priority: 100
+        direction: Inbound
+  register: sg_postgresql
