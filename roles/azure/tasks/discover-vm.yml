@@ -9,10 +9,10 @@
 - name: POSTGRESQL OVERLAY | discovering standalone {{ application }}
   azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ project }}_{{ application }}_{{ item }}_internal"
+    name: "{{ project }}_{{ application }}_{{ ec2_tag_Role }}_{{ cluster }}_{{ dataflow }}_{{ item }}_internal"    
     tags:
       - Application:{{ application }}
-      - Role:{{ role | default('none') }}
+      - Role:{{  ec2_tag_Role | default('none') }}
       - Tenant:{{ tenant }}
       - Project:{{ project }}
       - Cloud:{{ cloud }}
@@ -31,10 +31,10 @@
 - name: POSTGRESQL OVERLAY | discovering {{ application }} master
   azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ project }}_{{ application }}_{{ item }}_master_internal"
+    name: "{{ project }}_{{ application }}_{{ ec2_tag_Role }}_{{ cluster }}_{{ dataflow }}_{{ item }}_master_internal"
     tags:
       - Application:{{ application }}
-      - Role:{{ role | default('master') }}
+      - Role:{{ ec2_tag_Role | default('master') }}
       - Tenant:{{ tenant }}
       - Project:{{ project }}
       - Cloud:{{ cloud }}
@@ -57,10 +57,10 @@
 - name: POSTGRESQL OVERLAY | discovering {{ application }} replica
   azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ project }}_{{ application }}_{{ item }}_replica_internal"
+    name: "{{ project }}_{{ application }}_{{ ec2_tag_Role }}_{{ cluster }}_{{ dataflow }}_{{ item }}_replica_internal"
     tags:
       - Application:{{ application }}
-      - Role:{{ role | default('replica') }}
+      - Role:{{ ec2_tag_Role | default('replica') }}
       - Tenant:{{ tenant }}
       - Project:{{ project }}
       - Cloud:{{ cloud }}
