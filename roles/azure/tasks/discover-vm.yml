@@ -9,10 +9,10 @@
 - name: POSTGRESQL OVERLAY | discovering standalone {{ application }}
   azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ project }}_{{ application }}_{{ ec2_tag_Role }}_{{ cluster }}_{{ dataflow }}_{{ item }}_internal"    
+    name: "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('none') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_internal"    
     tags:
       - Application:{{ application }}
-      - Role:{{  ec2_tag_Role | default('none') }}
+      - Role:{{ ec2_tag_Role | default('none') }}
       - Tenant:{{ tenant }}
       - Project:{{ project }}
       - Cloud:{{ cloud }}
@@ -31,7 +31,7 @@
 - name: POSTGRESQL OVERLAY | discovering {{ application }} master
   azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ project }}_{{ application }}_{{ ec2_tag_Role }}_{{ cluster }}_{{ dataflow }}_{{ item }}_master_internal"
+    name: "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('master') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_master_internal"
     tags:
       - Application:{{ application }}
       - Role:{{ ec2_tag_Role | default('master') }}
@@ -43,7 +43,7 @@
       - Dataflow:{{ dataflow | default('none') }}
   with_sequence: count={{ count }}
   register: master_postgresql
-  
+
 - name: POSTGRESQL OVERLAY | adding all postgres masters to {{ application }} host group
   add_host: hostname="{{ item.ansible_facts.azure_networkinterfaces.0.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
   when: item.ansible_facts.azure_networkinterfaces | length > 0
@@ -57,7 +57,7 @@
 - name: POSTGRESQL OVERLAY | discovering {{ application }} replica
   azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ project }}_{{ application }}_{{ ec2_tag_Role }}_{{ cluster }}_{{ dataflow }}_{{ item }}_replica_internal"
+    name: "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('replica') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_replica_internal"
     tags:
       - Application:{{ application }}
       - Role:{{ ec2_tag_Role | default('replica') }}

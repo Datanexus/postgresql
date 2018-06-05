@@ -9,6 +9,11 @@
     - "{{ configuration }}"
   gather_facts: true  
   tasks:
+    # the math is overkill, but it's useful if we want to get more complicated
+    - name: POSTGRESQL CLEANUP | setting count to {{ count }}
+      set_fact:
+        count: "{{ instances | default(1) | int * 1  }}"
+        
     - block:
       - name: POSTGRESQL CLEANUP | gathering {{ region }} running instances
         ec2_instance_facts:
@@ -105,45 +110,111 @@
       - include_role:
           name: azure
           tasks_from: discover-resourcegroup
-        
+      
       - name: POSTGRESQL CLEANUP | removing {{ application }} VM in {{ specified_resourcegroup.name }}
         azure_rm_virtualmachine:
           resource_group: "{{ specified_resourcegroup.name }}"
-          name: "{{ item }}"
+          name:  "{{ project }}-{{ application }}-{{ item }}"
           state: absent
           remove_on_absent:
               - network_interfaces
               - virtual_storage
-        with_items:
-          - "{{ project }}-{{ application }}"
-          - "{{ project }}-{{ application }}-master"
-          - "{{ project }}-{{ application }}-replica1"
+        with_sequence: count={{ count }}
+        
+      - name: POSTGRESQL CLEANUP | removing {{ application }} master VM in {{ specified_resourcegroup.name }}
+        azure_rm_virtualmachine:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name:  "{{ project }}-{{ application }}-{{ item }}-master"
+          state: absent
+          remove_on_absent:
+              - network_interfaces
+              - virtual_storage
+        with_sequence: count={{ count }}
       
-      - name: POSTGRESQL CLEANUP | removal if we haven't booted a machine
+      - name: POSTGRESQL CLEANUP | removing {{ application }} replica VM in {{ specified_resourcegroup.name }}
+        azure_rm_virtualmachine:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name:  "{{ project }}-{{ application }}-{{ item }}-replica"
+          state: absent
+          remove_on_absent:
+              - network_interfaces
+              - virtual_storage
+        with_sequence: count={{ count }}
+      
+      - name: POSTGRESQL CLEANUP | standalone NIC removal if we haven't booted a machine
         azure_rm_networkinterface:
           resource_group: "{{ specified_resourcegroup.name }}"
-          name: "{{ item }}"
+          name: "{{ project }}_{{ application }}_{{ item }}_internal"
           state: absent
-        with_items:
-          - "{{ project }}_{{ application }}_internal"
-          - "{{ project }}_{{ application }}_external"
-          - "{{ project }}_{{ application }}_master_internal"
-          - "{{ project }}_{{ application }}_master_external"
-          - "{{ project }}_{{ application }}_replica1_internal"
-          - "{{ project }}_{{ application }}_replica1_external"
+        with_sequence: count={{ count }}
+      
+      - name: POSTGRESQL CLEANUP | standalone NIC removal if we haven't booted a machine
+        azure_rm_networkinterface:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "{{ project }}_{{ application }}_{{ item }}_external"
+          state: absent
+        with_sequence: count={{ count }}
+      
+      - name: POSTGRESQL CLEANUP | {{ project }}_{{ application }}_{{ ec2_tag_Role | default('master') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_master_internal removal 
+        azure_rm_networkinterface:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('master') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_master_internal"
+          state: absent
+        with_sequence: count={{ count }}
+      
+      - name: POSTGRESQL CLEANUP | {{ project }}_{{ application }}_{{ ec2_tag_Role | default('master') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_master_external removal
+        azure_rm_networkinterface:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('master') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_master_external"
+          state: absent
+        with_sequence: count={{ count }}
+      
+      - name: POSTGRESQL CLEANUP | {{ project }}_{{ application }}_{{ ec2_tag_Role | default('replica') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_replica_internal removal
+        azure_rm_networkinterface:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('replica') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_replica_internal"
+          state: absent
+        with_sequence: count={{ count }}
+      
+      - name: POSTGRESQL CLEANUP | {{ project }}_{{ application }}_{{ ec2_tag_Role | default('replica') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_replica_external removal
+        azure_rm_networkinterface:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('replica') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_replica_external"
+          state: absent
+        with_sequence: count={{ count }}
 
-      - name: POSTGRESQL OVERLAY | deleting all security groups
+      - name: POSTGRESQL CLEANUP | ACL removal if we haven't booted a machine
         azure_rm_securitygroup:
           resource_group: "{{ specified_resourcegroup.name }}"
-          name: "{{ item }}"
+          name: "{{ project }}_{{ application }}_{{ item }}_master_internal"
           state: absent
-        with_items:
-          - "dnsg_{{ project }}_closed"
-          - "dnsg_{{ project }}_ssh_private_internal"
-          - "dnsg_{{ project }}_ssh_public_external"
-          - "dnsg_{{ project }}_{{ application }}_public_internal"
-          - "{{ project }}_{{ application }}_master_external"
-          - "{{ project }}_{{ application }}_master_internal"
-          - "{{ project }}_{{ application }}_replica1_external"
-          - "{{ project }}_{{ application }}_replica1_internal"
+        with_sequence: count={{ count }}
+      
+      - name: POSTGRESQL CLEANUP | ACL removal if we haven't booted a machine
+        azure_rm_securitygroup:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "{{ project }}_{{ application }}_{{ item }}_master_external"
+          state: absent
+        with_sequence: count={{ count }}
+        
+      - name: POSTGRESQL CLEANUP | ACL removal if we haven't booted a machine
+        azure_rm_securitygroup:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "{{ project }}_{{ application }}_{{ item }}_replica_internal"
+          state: absent
+        with_sequence: count={{ count }}
+      
+      - name: POSTGRESQL CLEANUP | ACL removal if we haven't booted a machine
+        azure_rm_securitygroup:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "{{ project }}_{{ application }}_{{ item }}_replica_external"
+          state: absent
+        with_sequence: count={{ count }}
+      
+      - name: POSTGRESQL CLEANUP | dnsg_{{ project }}_{{ application }}_public_internal removal
+        azure_rm_securitygroup:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "dnsg_{{ project }}_{{ application }}_public_internal"
+          state: absent        
+        
       when: cloud == 'azure'

@@ -15,12 +15,12 @@
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
-      
+
     - include_role:
         name: aws
         tasks_from: discover-vpc
       when: cloud == 'aws'
-    
+
     - include_role:
         name: azure
         tasks_from: discover-resourcegroup
@@ -36,7 +36,7 @@
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
-      
+
     - include_role:
         name: aws
         tasks_from: create-securitygroup
@@ -52,15 +52,17 @@
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
-      
+
     - include_role:
         name: aws
         tasks_from: launch-vm
       when: cloud == 'aws'
+
     - include_role:
         name: osp
         tasks_from: launch-vm
       when: cloud == 'osp'
+
     - include_role:
         name: azure
         tasks_from: launch-vm
@@ -77,18 +79,17 @@
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
-      
+
     - include_role:
         name: aws
         tasks_from: apply-securitygroup
       when: cloud == 'aws'
-    
 
     - include_role:
         name: azure
         tasks_from: modify-existing-securitygroup
       when: cloud == 'azure'
-          
+
 - name: POSTGRESQL OVERLAY | gathering {{ cloud }} inventory
   tags:
     - postgresql
@@ -101,17 +102,17 @@
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
-      
+
     - include_role:
         name: aws
         tasks_from: discover-vm
       when: cloud == 'aws'
-      
+
     - include_role:
         name: azure
         tasks_from: discover-vm
       when: cloud == 'azure'
-    
+
 # this is a separate step because ansible needs to gather facts on a fully configured base system
 - name: POSTGRESQL OVERLAY | completing OS configuration
   hosts: postgresql
@@ -122,12 +123,12 @@
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
-    
+
     - include_role:
         name: preflight
       vars:
         mountpoint: "/data"
-    
+
     - include_role:
         name: http-proxy
       when: http_proxy is defined

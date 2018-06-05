@@ -11,7 +11,22 @@
 - name: POSTGRESQL OVERLAY | setting vpc facts
   set_fact:
     specified_resourcegroup: "{{ resourcegroup_by_name.ansible_facts.azure_resourcegroups.0 }}"
-  when: resourcegroup_by_name.ansible_facts.azure_resourcegroups.0 is defined
+  when: resourcegroup_by_name.ansible_facts.azure_resourcegroups | length > 0
+
+# this block is to support customers on the legacy code where the resource group is not defined by region
+- block:
+
+  - name: JUMPHOST AZURE OVERLAY | retrieving resource group by name (legacy)
+    azure_rm_resourcegroup_facts:
+      name: "{{ project }}_{{ domain }}"
+    register: legacy_resourcegroup_by_name
+
+  - name: JUMPHOST AZURE OVERLAY | setting vpc facts (legacy)
+    set_fact:
+      specified_resourcegroup: "{{ legacy_resourcegroup_by_name.ansible_facts.azure_resourcegroups.0 }}"
+    when: legacy_resourcegroup_by_name.ansible_facts.azure_resourcegroups | length > 0
+
+  when: resourcegroup_by_name.ansible_facts.azure_resourcegroups | length == 0
 
 - name: POSTGRESQL OVERLAY | retrieving facts for {{ project }}_{{ domain }} virtual network
   azure_rm_virtualnetwork_facts:

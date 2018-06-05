@@ -7,16 +7,25 @@
 - import_tasks: interface-facts.yml
 
 - name: POSTGRESQL OVERLAY | installing {{ application }} and epel repos
-  become: true
   package:
     name: "{{ item }}"
     state: present
   with_items:
     - 'https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-{{ ansible_distribution|lower }}{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm'
     - epel-release-7-9
+  become: yes
 
+# this shouldn't be strictly necessary, but the Azure CentOS image sporadically throws errors 
+# - name: POSTGRESQL OVERLAY | cleaning yum cache
+#   command: /bin/yum clean all
+#   args:
+#     warn: no
+#   when:
+#     - cloud == 'azure'
+#     - ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
+#   become: yes
+  
 - name: POSTGRESQL OVERLAY | installing {{ application }} packages
-  become: true
   package:
     name: "{{ item }}"
     state: present
@@ -26,6 +35,7 @@
     - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-server-{{ postgresql_version }}{{ postgresql_rpm_info }}"
     - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-contrib-{{ postgresql_version }}{{ postgresql_rpm_info }}"
     - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-libs-{{ postgresql_version }}{{ postgresql_rpm_info }}"
+  become: yes
 
 - block:
   - name: POSTGRESQL OVERLAY | creating default PostgreSQL profile
@@ -84,13 +94,13 @@
     with_items: "{{ postgresql_unix_socket_directories }}"
   
   - name: POSTGRESQL OVERLAY | ensuring SE Linux pre-requisite packages are installed
-    become: true
     package:
       name: "{{ item }}"
       state: present
     when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
     with_items:
       - policycoreutils-python
+    become: yes
       
   - name: POSTGRESQL OVERLAY | updating SE Linux enforcing mode
     sefcontext:
@@ -114,4 +124,4 @@
        
   - name: POSTGRESQL OVERLAY | ensuring {{ application }} is started and enabled on boot
     systemd: "name={{ postgresql_daemon }} state=started enabled=True"
-  become: true
+  become: yes

@@ -79,6 +79,7 @@
       state: present
 
   # the ansible filesystem module was succeeding without errors, but the resulting filesystem was unmountable
+  # this is not idempotent
   - name: GENERIC PREFLIGHT OVERLAY | making filesystem on {{ data_filesystem }}
     command: "/usr/sbin/mkfs -t ext4 {{ data_filesystem }}"
     when: data_filesystem is defined
