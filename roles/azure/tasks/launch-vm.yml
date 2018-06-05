@@ -166,7 +166,7 @@
   - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} master virtual {{ project }}_{{ application }}_internal NIC
     azure_rm_networkinterface:
       resource_group: "{{ specified_resourcegroup.name }}"
-      name: "{{ project }}_{{ application }}_{{ item }}_master_internal"    
+      name: "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('master') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_master_internal"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: "{{ internal_private_subnet_result.name }}"
       security_group: "dnsg_{{ project }}_ssh_private_internal"
@@ -187,7 +187,7 @@
   - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} master virtual {{ project }}_{{ application }}_external NIC
     azure_rm_networkinterface:
       resource_group: "{{ specified_resourcegroup.name }}"
-      name: "{{ project }}_{{ application }}_{{ item }}_master_external"
+      name: "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('master') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_master_external"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: '{{ internal_public_subnet_result.name }}'
       security_group: "dnsg_{{ project }}_{{ application }}_public_internal"
@@ -208,7 +208,7 @@
   - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} replica virtual {{ project }}_{{ application }}_internal NIC
     azure_rm_networkinterface:
       resource_group: "{{ specified_resourcegroup.name }}"
-      name: "{{ project }}_{{ application }}_{{ count }}_replica_internal"    
+      name: "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('replica') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_replica_internal"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: "{{ internal_private_subnet_result.name }}"
       security_group: "dnsg_{{ project }}_ssh_private_internal"
@@ -229,7 +229,7 @@
   - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} replica virtual {{ project }}_{{ application }}_external NIC
     azure_rm_networkinterface:
       resource_group: "{{ specified_resourcegroup.name }}"
-      name: "{{ project }}_{{ application }}_{{ count }}_replica_external"
+      name: "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('replica') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_replica_external"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: '{{ internal_public_subnet_result.name }}'
       security_group: "dnsg_{{ project }}_{{ application }}_public_internal"
@@ -253,8 +253,8 @@
       name: "{{ project }}-{{ application }}-{{ item }}-master"
       location: "{{ region }}"
       network_interface_names:
-        - "{{ project }}_{{ application }}_{{ item }}_master_internal"
-        - "{{ project }}_{{ application }}_{{ item }}_master_external"
+        - "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('master') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_master_internal"
+        - "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('master') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_master_external"
       vm_size: "{{ type }}"
       managed_disk_type: "{{ root_disk_type | default('Standard_LRS') }}"
       admin_username: "{{ user }}"
@@ -285,8 +285,8 @@
       name: "{{ project }}-{{ application }}-{{ item }}-replica"
       location: "{{ region }}"
       network_interface_names:
-        - "{{ project }}_{{ application }}_{{ item }}_replica_internal"
-        - "{{ project }}_{{ application }}_{{ item }}_replica_external"
+        - "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('replica') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_replica_internal"
+        - "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('replica') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_replica_external"
       vm_size: "{{ type }}"
       managed_disk_type: "{{ root_disk_type | default('Standard_LRS') }}"
       admin_username: "{{ user }}"
