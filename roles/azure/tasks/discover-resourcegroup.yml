@@ -16,12 +16,12 @@
 # this block is to support customers on the legacy code where the resource group is not defined by region
 - block:
 
-  - name: JUMPHOST AZURE OVERLAY | retrieving resource group by name (legacy)
+  - name: POSTGRESQL OVERLAY | retrieving resource group by name (legacy)
     azure_rm_resourcegroup_facts:
       name: "{{ project }}_{{ domain }}"
     register: legacy_resourcegroup_by_name
 
-  - name: JUMPHOST AZURE OVERLAY | setting vpc facts (legacy)
+  - name: POSTGRESQL OVERLAY | setting vpc facts (legacy)
     set_fact:
       specified_resourcegroup: "{{ legacy_resourcegroup_by_name.ansible_facts.azure_resourcegroups.0 }}"
     when: legacy_resourcegroup_by_name.ansible_facts.azure_resourcegroups | length > 0

@@ -15,16 +15,6 @@
     - epel-release-7-9
   become: yes
 
-# this shouldn't be strictly necessary, but the Azure CentOS image sporadically throws errors 
-# - name: POSTGRESQL OVERLAY | cleaning yum cache
-#   command: /bin/yum clean all
-#   args:
-#     warn: no
-#   when:
-#     - cloud == 'azure'
-#     - ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
-#   become: yes
-  
 - name: POSTGRESQL OVERLAY | installing {{ application }} packages
   package:
     name: "{{ item }}"
@@ -38,6 +28,7 @@
   become: yes
 
 - block:
+  
   - name: POSTGRESQL OVERLAY | creating default PostgreSQL profile
     template:
       src: postgres.sh.j2
@@ -45,8 +36,7 @@
       owner: "{{ postgresql_user }}"
       group: "{{ postgresql_user }}"
       mode: 0644
-    become: yes
-
+      
   - name: POSTGRESQL OVERLAY | applying postgresql customizations
     blockinfile:
       name: "/etc/systemd/system/postgresql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}.service"
@@ -73,7 +63,6 @@
       backrefs: yes
       line: "listen_addresses = '{{ item }}'\t# what IP address(es) to listen on;"
     with_items: "{{ postgresql_interface_ipv4 }}"
-    notify: restart postgresql        
  
   - name: POSTGRESQL OVERLAY | configuring global settings
     lineinfile:
@@ -82,7 +71,6 @@
       line: "{{ item.option }} = '{{ item.value }}'"
       state: "{{ item.state | default('present') }}"
     with_items: "{{ postgresql_global_config_options }}"
-    notify: restart postgresql
   
   - name: POSTGRESQL OVERLAY | ensuring {{ application }} unix socket dirs exist
     file:
@@ -100,7 +88,6 @@
     when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
     with_items:
       - policycoreutils-python
-    become: yes
       
   - name: POSTGRESQL OVERLAY | updating SE Linux enforcing mode
     sefcontext:
@@ -120,8 +107,8 @@
      dest: "{{ postgresql_config_path }}/pg_hba.conf"
      insertafter: "^host    all             all             127.0.0.1/32            ident"
      line: "host    all             {{ postgresql_user }}        {{ postgresql_broadcast_interface_ipv4 }}/24          trust"
-    notify: restart postgresql
        
   - name: POSTGRESQL OVERLAY | ensuring {{ application }} is started and enabled on boot
     systemd: "name={{ postgresql_daemon }} state=started enabled=True"
+    
   become: yes
