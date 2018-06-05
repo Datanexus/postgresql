@@ -59,29 +59,29 @@
   
 - block:
 
-  - name: GENERIC PREFLIGHT OVERLAY | reading lun0 link to discover data block device
+  - name: POSTGRESQL PREFLIGHT OVERLAY | reading lun0 link to discover data block device
     command: /usr/bin/readlink -f /dev/disk/azure/scsi1/lun0
     register: found_block_device
 
-  - name: GENERIC PREFLIGHT OVERLAY | setting block device to {{ found_block_device.stdout }}
+  - name: POSTGRESQL PREFLIGHT OVERLAY | setting block device to {{ found_block_device.stdout }}
     set_fact:
       block_device: "{{ found_block_device.stdout }}"
 
-  - name: GENERIC PREFLIGHT OVERLAY | setting {{ block_device }} to a full partition
+  - name: POSTGRESQL PREFLIGHT OVERLAY | setting {{ block_device }} to a full partition
     set_fact:
       data_filesystem: "{{ block_device }}1"
     when: block_device is defined
 
-  - name: GENERIC PREFLIGHT OVERLAY | partitioning data disk into single {{ data_volume }} partition
+  - name: POSTGRESQL PREFLIGHT OVERLAY | partitioning data disk into single {{ data_volume }} partition
     parted:
       device: "{{ block_device }}"
       number: 1
       state: present
 
-  # the ansible filesystem module was succeeding without errors, but the resulting filesystem was unmountable
-  # this is not idempotent
-  - name: GENERIC PREFLIGHT OVERLAY | making filesystem on {{ data_filesystem }}
-    command: "/usr/sbin/mkfs -t ext4 {{ data_filesystem }}"
+  - name: POSTGRESQL PREFLIGHT OVERLAY | making filesystem on {{ data_filesystem }}
+    filesystem:
+      fstype: ext4
+      dev: "{{ data_filesystem }}"
     when: data_filesystem is defined
 
   - shell: "/usr/sbin/blkid {{ data_filesystem }} | /bin/awk '{ print $2 }'"
@@ -91,7 +91,7 @@
   - set_fact:
      block_uuid: "{{ shell_out.stdout | replace('\"', '') }}"
 
-  - name: GENERIC PREFLIGHT OVERLAY | mounting Azure data volume {{ block_uuid }} to {{ mountpoint }}
+  - name: POSTGRESQL PREFLIGHT OVERLAY | mounting Azure data volume {{ block_uuid }} to {{ mountpoint }}
     mount:
       path: "{{ mountpoint }}"
       src: "{{ block_uuid }}"
@@ -124,8 +124,9 @@
   register: uuid
   become: true
 
-# the lineinfile plays aren't intended to be idempotent
+# the lineinfile plays aren't intended to be idempotent but re-running has no tested side effects
 - block:
+  
   - name: POSTGRESQL PREFLIGHT OVERLAY | setting hostname actively so rebooting is unnecessary
     command: /usr/bin/hostnamectl set-hostname {{ application }}-{{ uuid.stdout }}
 
@@ -143,17 +144,17 @@
     lineinfile:
       dest: /etc/sysconfig/network
       state: present
-      insertafter: EOF
+      regexp: '^HOSTNAME='
+      backrefs: yes
       line: "HOSTNAME={{ application }}-{{ uuid.stdout }}.localdomain"
 
   - name: POSTGRESQL PREFLIGHT OVERLAY | setting {{ hostvars[inventory_hostname].ansible_eth0.ipv4.address }} to {{ application }}-{{ uuid.stdout }}.localdomain in /etc/hosts
     lineinfile:
       dest: /etc/hosts
+      state: present
+      regexp: "^{{ hostvars[inventory_hostname].ansible_eth0.ipv4.address }}"
       insertafter: EOF
-      # regexp: "^127.0.0.1  localhost localhost.localdomain localhost4 localhost4.localdomain4"
-      # backrefs: yes
-      # line: "127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4 {{ hostvars[inventory_hostname].ansible_hostname }}"
-      line: "{{ hostvars[inventory_hostname].ansible_eth0.ipv4.address }}    {{ application }}-{{ uuid.stdout }}.localdomain {{ application }}-{{ uuid.stdout }} {{ application }}"
+      line: "{{ hostvars[inventory_hostname].ansible_eth0.ipv4.address }}   {{ application }}-{{ uuid.stdout }}.localdomain {{ application }}-{{ uuid.stdout }} {{ application }}"
 
   - name: POSTGRESQL PREFLIGHT OVERLAY | ensuring hostname changes persist after reboot
     lineinfile:
@@ -162,16 +163,19 @@
       insertafter: EOF
       line: 'preserve_hostname: true'
     when: cloud == 'aws'
+    
   become: true
   when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
 
 # community CentOS AMI ships with postfix enabled so we need to disable it
+# adding the failed_when makes it idempotent
 - name: POSTGRESQL PREFLIGHT OVERLAY | stopping postfix
   service:
     name: postfix
     state: stopped
   become: true
-  when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'  
+  failed_when: no
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
   
 # annnnd remove it
 - name: POSTGRESQL PREFLIGHT OVERLAY | removing postfix
@@ -182,7 +186,7 @@
   when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
 
 # community CentOS image ships with rpcbind enabled; we don't use NFS by default so disable it
-- name: GENERIC PREFLIGHT OVERLAY | stopping rpcbind
+- name: POSTGRESQL PREFLIGHT OVERLAY | stopping rpcbind
   service:
     name: "{{ item }}"
     state: stopped

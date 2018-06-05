@@ -132,7 +132,7 @@
     - include_role:
         name: http-proxy
       when: http_proxy is defined
-    
+
 - name: POSTGRESQL OVERLAY | installing base postgresql application
   tags:
     - vm
@@ -144,10 +144,10 @@
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
-    
+
     - include_role:
         name: postgresql
- 
+
 - name: POSTGRESQL OVERLAY MASTER | configuring master
   tags: 
     - vm
@@ -159,13 +159,13 @@
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
-    
+
     - include_role:
         name: master-streaming
       when:
         - groups['postgresql_replica'] is defined
         - groups['postgresql_replica'] | length > 0
-        
+
 - name: POSTGRESQL OVERLAY REPLICA | configuring replica
   tags:
     - vm
@@ -177,13 +177,13 @@
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
-    
+
     - include_role:
         name: replica-streaming
       when:
         - groups['postgresql_master'] is defined
-        - groups['postgresql_master'] | length > 0        
-           
+        - groups['postgresql_master'] | length > 0   
+
 - name: POSTGRESQL OVERLAY MASTER | staging data
   tags: 
     - vm
@@ -195,14 +195,14 @@
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
-      
+
     - block:
-      
+
       - name: POSTGRESQL OVERLAY MASTER | checking if {{ datafile }} exists
         stat:
           path: "{{ datafile }}"
         register: sqlscript
-      
+
       - name: POSTGRESQL OVERLAY MASTER | uploading {{ datafile }}
         copy:
           src: "{{ datafile }}"
@@ -211,7 +211,7 @@
           group: "{{ user }}"
           mode: 0600
         when: sqlscript.stat.exists
-        
+
       - name: POSTGRESQL OVERLAY MASTER | executing {{ datafile }}
         command: /usr/bin/psql -f /home/{{ user }}/{{ datafile }}
         when: sqlscript.stat.exists

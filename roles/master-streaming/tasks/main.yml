@@ -8,9 +8,7 @@
     lineinfile:
       dest: "{{ postgresql_config_path }}/pg_hba.conf"
       line: "host     replication     replicator      {{ hostvars[item].postgresql_interface_ipv4 }}/32         md5"
-    become: true
     with_items: "{{ groups.postgresql_replica }}"
-    notify: restart postgresql  
      
   - name: POSTGRESQL MASTER OVERLAY | adding replication user
     postgresql_user:
@@ -35,7 +33,6 @@
       regexp: "^#wal_level"
       backrefs: yes
       line: "wal_level = hot_standby\t\t\t# minimal, archive, or hot_standby"
-    notify: restart postgresql
 
   # max_wal_senders should be four times the total number of replicas 
   - set_fact: wal_senders={{ groups['postgresql_replica'] | length * 4 }}  
@@ -46,7 +43,6 @@
       regexp: "^#max_wal_senders"
       backrefs: yes
       line: "max_wal_senders = {{ wal_senders }} \t\t# max number of walsender processes"
-    notify: restart postgresql
 
   - name: POSTGRESQL MASTER OVERLAY | configuring checkpoint segments
     lineinfile:
@@ -54,7 +50,6 @@
       regexp: "^#checkpoint_segments"
       backrefs: yes
       line: "checkpoint_segments = 8\t\t\t# in logfile segments, min 1, 16MB each"
-    notify: restart postgresql
     
   - name: POSTGRESQL MASTER OVERLAY | configuring write ahead log keep segments
     lineinfile:
@@ -62,6 +57,9 @@
       regexp: "^#wal_keep_segments"
       backrefs: yes
       line: "wal_keep_segments = 8\t\t# in logfile segments, 16MB each; 0 disables"
-    notify: restart postgresql
+  
+  - name: POSTGRESQL REPLICA OVERLAY | restart postgresql
+    systemd: "name={{ postgresql_daemon }} state=restarted daemon_reload=yes"
+  
   when: inventory_hostname in groups.postgresql_master
-  become: true
+  become: yes
