@@ -27,7 +27,7 @@
   add_host: hostname="{{ item.ansible_facts.azure_networkinterfaces.0.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname=postgresql ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem"
   when: item.ansible_facts.azure_networkinterfaces | length > 0
   with_items: "{{ all_postgresql.results }}"
-  
+
 - name: POSTGRESQL OVERLAY | discovering {{ application }} master
   azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"

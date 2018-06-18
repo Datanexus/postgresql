@@ -61,7 +61,8 @@
   register: existing_key
 
 # create new SSH key - azure supports 2048bit+ RSA 
-- block:    
+- block:
+  
   - name: POSTGRESQL OVERLAY | creating {{ cloud }}-{{ region }}-{{ project }}-{{ application }}
     command: "/usr/bin/ssh-keygen -b 2048 -t rsa -f {{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ application }}-{{ domain }}-private-key.pem -N ''"
     register: new_azure_keypair
@@ -72,6 +73,7 @@
       mode: 0400
     when:
       - new_azure_keypair.changed
+
   when:
     - not existing_key.stat.exists
 
@@ -86,10 +88,11 @@
     count: "{{ instances | default(1) | int * 1  }}"
     
 - block:
+  
   - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} virtual {{ project }}_{{ application }}_internal NIC
     azure_rm_networkinterface:
       resource_group: "{{ specified_resourcegroup.name }}"
-      name: "{{ project }}_{{ application }}_{{ item }}_internal"    
+      name: "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('none') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_internal"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: "{{ internal_private_subnet_result.name }}"
       security_group: "dnsg_{{ project }}_ssh_private_internal"
@@ -110,7 +113,7 @@
   - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} virtual {{ project }}_{{ application }}_external NIC
     azure_rm_networkinterface:
       resource_group: "{{ specified_resourcegroup.name }}"
-      name: "{{ project }}_{{ application }}_{{ item }}_external"
+      name: "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('none') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_external"
       virtual_network: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.name }}"
       subnet_name: '{{ internal_public_subnet_result.name }}'
       security_group: "dnsg_{{ project }}_{{ application }}_public_internal"
@@ -134,8 +137,8 @@
       name: "{{ project }}-{{ application }}-{{ item }}"
       location: "{{ region }}"
       network_interface_names:
-        - "{{ project }}_{{ application }}_{{ item }}_internal"
-        - "{{ project }}_{{ application }}_{{ item }}_external"
+        - "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('none') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_internal"
+        - "{{ project }}_{{ application }}_{{ ec2_tag_Role | default('none') }}_{{ cluster | default('a') }}_{{ dataflow | default('none') }}_{{ item }}_external"
       vm_size: "{{ type }}"
       managed_disk_type: "{{ root_disk_type | default('Standard_LRS') }}"
       admin_username: "{{ user }}"
@@ -163,6 +166,7 @@
   when: not replica
   
 - block:
+  
   - name: POSTGRESQL OVERLAY | creating {{ count }} {{ application }} master virtual {{ project }}_{{ application }}_internal NIC
     azure_rm_networkinterface:
       resource_group: "{{ specified_resourcegroup.name }}"
