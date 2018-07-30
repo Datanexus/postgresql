@@ -1,10 +1,5 @@
 # (c) Copyright 2016 DataNexus Inc.  All Rights Reserved. 
 ---
-- name: defining postgresql_version
-  set_fact:
-    postgresql_version: "{{ postgresql_version }}"
-  when: postgresql_version is not defined
-
 - name: defining postgresql_home_dir
   set_fact:
     postgresql_home_dir: "{{ postgresql_home_dir }}"
