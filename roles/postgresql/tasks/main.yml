@@ -6,29 +6,62 @@
 - import_tasks: facts.yml
 - import_tasks: interface-facts.yml
 
-- name: POSTGRESQL OVERLAY | installing {{ application }} and epel repos
-  package:
-    name: "{{ item }}"
-    state: present
-  with_items:
-    - 'https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-{{ ansible_distribution|lower }}{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm'
-    - epel-release-7-9
+# Amazon linux is based on Redhat 6
+- block:
+  
+  - set_fact:
+      vendor_distribution: centos
+
+  - name: POSTGRESQL OVERLAY | enabling epel repo for Amazon
+    command: /usr/bin/yum-config-manager --enable epel
+
+  - name: POSTGRESQL OVERLAY | installing {{ application }} repo for Amazon
+    package:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - 'https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-6-x86_64/pgdg-ami201503-{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-2.noarch.rpm'
+
   become: yes
+  when: ansible_distribution == 'Amazon'
+
+# CentOS / Redhat 7
+- block:
+  
+  - name: POSTGRESQL OVERLAY | installing epel repo for CentOS / Redhat
+    package:
+      name: epel-release-7-9
+      state: present
+
+  - name: POSTGRESQL OVERLAY | installing {{ application }} repo for CentOS / Redhat
+    package:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - 'https://download.postgresql.org/pub/repos/yum/{{ postgresql_major_version }}.{{ postgresql_minor_version }}/redhat/rhel-7-x86_64/pgdg-{{ vendor_distribution  | default(ansible_distribution|lower) }}{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_major_version }}.{{ postgresql_minor_version }}-3.noarch.rpm'
+  
+  become: yes
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
 
 - name: POSTGRESQL OVERLAY | installing {{ application }} packages
   package:
     name: "{{ item }}"
     state: present
   with_items:
-    - "python-psycopg2-{{ python_postgres_adapter_version }}.rhel7"
-    - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_version }}{{ postgresql_rpm_info }}"
-    - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-server-{{ postgresql_version }}{{ postgresql_rpm_info }}"
-    - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-contrib-{{ postgresql_version }}{{ postgresql_rpm_info }}"
-    - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-libs-{{ postgresql_version }}{{ postgresql_rpm_info }}"
+    # - "python-psycopg2-{{ python_postgres_adapter_version }}.rhel7"
+    # - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-{{ postgresql_version }}{{ postgresql_rpm_info }}"
+ #    - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-server-{{ postgresql_version }}{{ postgresql_rpm_info }}"
+ #    - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-contrib-{{ postgresql_version }}{{ postgresql_rpm_info }}"
+ #    - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-libs-{{ postgresql_version }}{{ postgresql_rpm_info }}"
+    - python-psycopg2
+    - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}"
+    - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-server"
+    - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-contrib"
+    - "postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-libs"
   become: yes
 
 - block:
-  
+
   - name: POSTGRESQL OVERLAY | creating default PostgreSQL profile
     template:
       src: postgres.sh.j2
@@ -37,7 +70,15 @@
       group: "{{ postgresql_user }}"
       mode: 0644
       
-  - name: POSTGRESQL OVERLAY | applying postgresql customizations
+  - name: POSTGRESQL OVERLAY | applying postgresql customizations on Redhat 6 base
+    lineinfile:
+      backrefs: yes
+      path: "/etc/rc.d/init.d/postgresql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}"
+      regexp: '^PGDATA=/var/lib/pgsql/9.6/data'
+      line: "PGDATA={{ postgresql_data_dir }}"
+    when: ansible_distribution == 'Amazon'
+
+  - name: POSTGRESQL OVERLAY | applying postgresql customizations on Redhat 7 base
     blockinfile:
       name: "/etc/systemd/system/postgresql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}.service"
       mode: 0644
@@ -46,15 +87,35 @@
         .include /lib/systemd/system/postgresql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}.service
         [Service]
         Environment=PGDATA={{ postgresql_data_dir }}
-
+    when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
+    
   - name: POSTGRESQL OVERLAY | checking if {{ application }} database is initialized
     stat:
       path: "{{ postgresql_data_dir }}/PG_VERSION"
     register: pgdata_dir_version
 
-  - name: initializing {{ postgresql_data_dir }}
+  - block:
+    
+    - file:
+        state: directory
+        mode: 0755
+        path: "{{ postgresql_data_dir }}"
+        owner: "{{ postgresql_user }}"
+        group: "{{ postgresql_group }}"
+    
+    - name: POSTGRESQL OVERLAY | initializing {{ postgresql_data_dir }} on Amazon
+      command: "{{ postgresql_bin_path }}/initdb {{ postgresql_data_dir}}"
+      become_user: "{{ postgresql_user }}"
+      
+    when:
+      - not pgdata_dir_version.stat.exists
+      - ansible_distribution == 'Amazon'
+      
+  - name: POSTGRESQL OVERLAY | initializing {{ postgresql_data_dir }} on CentOS / RHEL
     command: "{{ postgresql_bin_path }}/postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-setup initdb"
-    when: not pgdata_dir_version.stat.exists
+    when:
+      - not pgdata_dir_version.stat.exists
+      - ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
 
   - name: POSTGRESQL OVERLAY | listening on {{ postgresql_interface_ipv4 }}
     lineinfile:
@@ -108,7 +169,12 @@
      insertafter: "^host    all             all             127.0.0.1/32            ident"
      line: "host    all             {{ postgresql_user }}        {{ postgresql_broadcast_interface_ipv4 }}/24          trust"
        
-  - name: POSTGRESQL OVERLAY | ensuring {{ application }} is started and enabled on boot
+  - name: POSTGRESQL OVERLAY | ensuring {{ application }} is started and enabled on boot on Amazon
+    service: "name={{ postgresql_daemon }} state=started enabled=True"
+    when: ansible_distribution == 'Amazon'
+  
+  - name: POSTGRESQL OVERLAY | ensuring {{ application }} is started and enabled on boot on CentOS / RHEL
     systemd: "name={{ postgresql_daemon }} state=started enabled=True"
+    when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
     
   become: yes

@@ -6,9 +6,6 @@ postgresql_group: postgres
 postgresql_major_version: 9
 postgresql_minor_version: 6
 postgresql_rev_version: "9-1"
-postgresql_rpm_info: "PGDG.rhel7"
-postgresql_version: "{{ postgresql_major_version }}.{{ postgresql_minor_version }}.{{ postgresql_rev_version }}"
-python_postgres_adapter_version: "2.7.4-1"
 postgresql_data_dir: "/data/pgsql"
 postgresql_home_dir: "/var/lib/pgsql"
 postgresql_bin_path: "/usr/pgsql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}/bin"
